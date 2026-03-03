@@ -34,7 +34,7 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 					"--yws-bubble-white": "#ffffff",
 					"--yws-border": "rgba(0,0,0,0.08)",
 					"--yws-shadow": "rgba(0,0,0,0.08)",
-			  }
+				}
 			: ({
 					"--yws-surface": "#1f2937",
 					"--yws-text-primary": "#f9fafb",
@@ -44,7 +44,7 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 					"--yws-bubble-white": "#ffffff",
 					"--yws-border": "rgba(255,255,255,0.12)",
 					"--yws-shadow": "rgba(0,0,0,0.24)",
-			  } as React.CSSProperties);
+				} as React.CSSProperties);
 
 	// Figma-exported assets
 	const imgFrame2147223205 =

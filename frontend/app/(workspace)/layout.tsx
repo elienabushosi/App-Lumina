@@ -81,12 +81,10 @@ function getPageTitle(pathname: string): string {
 		return "Single Parcel";
 	} else if (pathname === "/reports") {
 		return "All Live Reports";
-	} else if (pathname === "/land-assemblage") {
-		return "Land Assemblage";
 	} else if (pathname === "/team") {
 		return "Team";
 	} else if (pathname === "/demo-report-list") {
-		return "Sample Reports";
+		return "Sample Dashboard";
 	} else if (pathname.startsWith("/demo-report")) {
 		return "Report Details";
 	} else if (pathname === "/settings") {
@@ -124,10 +122,34 @@ export default function WorkspaceLayout({
 			Type: string | null;
 		} | null;
 	} | null>(null);
+	const isDevBypassAuth =
+		process.env.NODE_ENV === "development" &&
+		process.env.NEXT_PUBLIC_BYPASS_AUTH === "1";
 	const pageTitle = getPageTitle(pathname);
 
 	useEffect(() => {
 		const checkAuth = async () => {
+			// In development, when NEXT_PUBLIC_BYPASS_AUTH=1, skip real auth
+			if (isDevBypassAuth) {
+				setUserData({
+					user: {
+						IdUser: "dev-user-id",
+						Name: "Dev User",
+						Email: "dev@example.com",
+						Role: "admin",
+						IdOrganization: "dev-org-id",
+					},
+					organization: {
+						IdOrganization: "dev-org-id",
+						Name: "Dev Organization",
+						Type: "sample",
+					},
+				});
+				setIsAuthenticated(true);
+				setIsChecking(false);
+				return;
+			}
+
 			const token = getAuthToken();
 
 			if (!token) {
@@ -156,7 +178,7 @@ export default function WorkspaceLayout({
 		};
 
 		checkAuth();
-	}, [router]);
+	}, [router, isDevBypassAuth]);
 
 	// Show loading state while checking authentication
 	if (isChecking || !isAuthenticated) {
@@ -202,21 +224,9 @@ export default function WorkspaceLayout({
 										}
 										asChild
 									>
-									<Link href="/search-address">
-										<SquareDashed className="size-4" />
-										<span>Single Parcel</span>
-									</Link>
-									</SidebarMenuButton>
-								</SidebarMenuItem>
-								<SidebarMenuItem>
-									<SidebarMenuButton
-										tooltip="Land Assemblage"
-										isActive={pathname === "/land-assemblage"}
-										asChild
-									>
-										<Link href="/land-assemblage">
-											<SquareStack className="size-4" />
-											<span>Land Assemblage</span>
+										<Link href="/search-address">
+											<SquareDashed className="size-4" />
+											<span>Single Parcel</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
@@ -258,16 +268,16 @@ export default function WorkspaceLayout({
 								</SidebarMenuItem>
 								<SidebarMenuItem>
 									<SidebarMenuButton
-										tooltip="Sample Reports"
+										tooltip="Items"
 										isActive={
 											pathname === "/demo-report-list" ||
 											pathname.startsWith("/demo-report")
 										}
 										asChild
 									>
-									<Link href="/demo-report-list">
+										<Link href="/demo-report-list">
 											<FileCheck className="size-4" />
-											<span>Sample Reports</span>
+											<span>Items</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
@@ -275,7 +285,9 @@ export default function WorkspaceLayout({
 									<SidebarMenuItem>
 										<SidebarMenuButton
 											tooltip="Massing Sandbox (dev only)"
-											isActive={pathname === "/massing-sandbox"}
+											isActive={
+												pathname === "/massing-sandbox"
+											}
 											asChild
 										>
 											<Link href="/massing-sandbox">

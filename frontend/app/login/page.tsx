@@ -28,17 +28,22 @@ const forgotPasswordSchema = z.object({
 	email: z.string().email("Please enter a valid email address"),
 });
 
-const resetPasswordSchema = z.object({
-	email: z.string().email("Please enter a valid email address"),
-	code: z.string().min(6, "Code must be at least 6 characters").max(10, "Code must be 10 characters or less"),
-	newPassword: z
-		.string()
-		.min(6, "Password must be at least 6 characters"),
-	confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-	message: "Passwords do not match",
-	path: ["confirmPassword"],
-});
+const resetPasswordSchema = z
+	.object({
+		email: z.string().email("Please enter a valid email address"),
+		code: z
+			.string()
+			.min(6, "Code must be at least 6 characters")
+			.max(10, "Code must be 10 characters or less"),
+		newPassword: z
+			.string()
+			.min(6, "Password must be at least 6 characters"),
+		confirmPassword: z.string(),
+	})
+	.refine((data) => data.newPassword === data.confirmPassword, {
+		message: "Passwords do not match",
+		path: ["confirmPassword"],
+	});
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
@@ -102,16 +107,13 @@ function LoginPageContent() {
 				email: data.email.toLowerCase().trim(),
 			};
 
-			const response = await fetch(
-				`${config.apiUrl}/api/auth/login`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(normalizedData),
-				}
-			);
+			const response = await fetch(`${config.apiUrl}/api/auth/login`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(normalizedData),
+			});
 
 			const result = await response.json();
 
@@ -156,25 +158,30 @@ function LoginPageContent() {
 					body: JSON.stringify({
 						email: data.email.toLowerCase().trim(),
 					}),
-				}
+				},
 			);
 
 			const result = await response.json();
 
 			if (!response.ok) {
-				setError(result.message || "Failed to send password reset code");
+				setError(
+					result.message || "Failed to send password reset code",
+				);
 				setIsRequestingCode(false);
 				return;
 			}
 
 			setCodeSent(true);
-			resetPasswordForm.setValue("email", data.email.toLowerCase().trim());
+			resetPasswordForm.setValue(
+				"email",
+				data.email.toLowerCase().trim(),
+			);
 			setIsRequestingCode(false);
 		} catch (err) {
 			setError(
 				err instanceof Error
 					? err.message
-					: "Failed to request password reset code"
+					: "Failed to request password reset code",
 			);
 			setIsRequestingCode(false);
 		}
@@ -198,7 +205,7 @@ function LoginPageContent() {
 						code: data.code,
 						newPassword: data.newPassword,
 					}),
-				}
+				},
 			);
 
 			const result = await response.json();
@@ -211,7 +218,7 @@ function LoginPageContent() {
 
 			setResetSuccess(true);
 			setIsResetting(false);
-			
+
 			// Redirect to login after 2 seconds
 			setTimeout(() => {
 				setShowForgotPassword(false);
@@ -222,7 +229,7 @@ function LoginPageContent() {
 			}, 2000);
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to reset password"
+				err instanceof Error ? err.message : "Failed to reset password",
 			);
 			setIsResetting(false);
 		}
@@ -243,7 +250,7 @@ function LoginPageContent() {
 					{!showForgotPassword && (
 						<>
 							<h1 className="text-2xl font-semibold text-[#37322F] mb-6">
-								Log in to Clermont
+								Login
 							</h1>
 							<Form {...form}>
 								<form
@@ -280,7 +287,11 @@ function LoginPageContent() {
 													</FormLabel>
 													<button
 														type="button"
-														onClick={() => setShowForgotPassword(true)}
+														onClick={() =>
+															setShowForgotPassword(
+																true,
+															)
+														}
 														className="text-sm text-[#4090C2] hover:text-[#37322F] transition-colors"
 													>
 														Forgot Password?
@@ -314,8 +325,8 @@ function LoginPageContent() {
 										{isLoading
 											? "Logging in..."
 											: isSuccess
-											? "Access granted"
-											: "Log in"}
+												? "Access granted"
+												: "Log in"}
 									</Button>
 								</form>
 								<div className="mt-6 text-center">
@@ -340,11 +351,15 @@ function LoginPageContent() {
 									</h1>
 									<Form {...forgotPasswordForm}>
 										<form
-											onSubmit={forgotPasswordForm.handleSubmit(onForgotPasswordSubmit)}
+											onSubmit={forgotPasswordForm.handleSubmit(
+												onForgotPasswordSubmit,
+											)}
 											className="space-y-6"
 										>
 											<FormField
-												control={forgotPasswordForm.control}
+												control={
+													forgotPasswordForm.control
+												}
 												name="email"
 												render={({ field }) => (
 													<FormItem>
@@ -363,7 +378,9 @@ function LoginPageContent() {
 												)}
 											/>
 											{error && (
-												<div className="text-sm text-red-600">{error}</div>
+												<div className="text-sm text-red-600">
+													{error}
+												</div>
 											)}
 											<div className="flex gap-3">
 												<Button
@@ -371,13 +388,17 @@ function LoginPageContent() {
 													disabled={isRequestingCode}
 													className="flex-1 bg-[#37322F] hover:bg-[#37322F]/90 text-white"
 												>
-													{isRequestingCode ? "Sending..." : "Send Reset Code"}
+													{isRequestingCode
+														? "Sending..."
+														: "Send Reset Code"}
 												</Button>
 												<Button
 													type="button"
 													variant="outline"
 													onClick={() => {
-														setShowForgotPassword(false);
+														setShowForgotPassword(
+															false,
+														);
 														forgotPasswordForm.reset();
 														setError(null);
 													}}
@@ -396,16 +417,21 @@ function LoginPageContent() {
 									{resetSuccess && (
 										<div className="p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-700 text-sm mb-4">
 											<CheckCircle2 className="h-4 w-4" />
-											Password updated successfully! Redirecting to login...
+											Password updated successfully!
+											Redirecting to login...
 										</div>
 									)}
 									<Form {...resetPasswordForm}>
 										<form
-											onSubmit={resetPasswordForm.handleSubmit(onResetPasswordSubmit)}
+											onSubmit={resetPasswordForm.handleSubmit(
+												onResetPasswordSubmit,
+											)}
 											className="space-y-4"
 										>
 											<FormField
-												control={resetPasswordForm.control}
+												control={
+													resetPasswordForm.control
+												}
 												name="email"
 												render={({ field }) => (
 													<FormItem>
@@ -424,7 +450,9 @@ function LoginPageContent() {
 												)}
 											/>
 											<FormField
-												control={resetPasswordForm.control}
+												control={
+													resetPasswordForm.control
+												}
 												name="code"
 												render={({ field }) => (
 													<FormItem>
@@ -444,7 +472,9 @@ function LoginPageContent() {
 												)}
 											/>
 											<FormField
-												control={resetPasswordForm.control}
+												control={
+													resetPasswordForm.control
+												}
 												name="newPassword"
 												render={({ field }) => (
 													<FormItem>
@@ -463,7 +493,9 @@ function LoginPageContent() {
 												)}
 											/>
 											<FormField
-												control={resetPasswordForm.control}
+												control={
+													resetPasswordForm.control
+												}
 												name="confirmPassword"
 												render={({ field }) => (
 													<FormItem>
@@ -482,15 +514,22 @@ function LoginPageContent() {
 												)}
 											/>
 											{error && (
-												<div className="text-sm text-red-600">{error}</div>
+												<div className="text-sm text-red-600">
+													{error}
+												</div>
 											)}
 											<div className="flex gap-3">
 												<Button
 													type="submit"
-													disabled={isResetting || resetSuccess}
+													disabled={
+														isResetting ||
+														resetSuccess
+													}
 													className="flex-1 bg-[#37322F] hover:bg-[#37322F]/90 text-white"
 												>
-													{isResetting ? "Updating..." : "Update Password"}
+													{isResetting
+														? "Updating..."
+														: "Update Password"}
 												</Button>
 												<Button
 													type="button"
@@ -520,11 +559,13 @@ function LoginPageContent() {
 
 export default function LoginPage() {
 	return (
-		<Suspense fallback={
-			<div className="w-full min-h-screen bg-[#F7F5F3] flex items-center justify-center">
-				<div className="text-[#37322F]">Loading...</div>
-			</div>
-		}>
+		<Suspense
+			fallback={
+				<div className="w-full min-h-screen bg-[#F7F5F3] flex items-center justify-center">
+					<div className="text-[#37322F]">Loading...</div>
+				</div>
+			}
+		>
 			<LoginPageContent />
 		</Suspense>
 	);

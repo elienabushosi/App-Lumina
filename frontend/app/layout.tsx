@@ -20,9 +20,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-	title: "Clermont - Property Zoning Reports for Developers & Architects",
+	title: "SaaS Template - Disconnected SaaS Boilerplate",
 	description:
-		"Property zoning snapshots and asset-analysis tool for developers & architects that automatically generates property zoning reports using just a client's address.",
+		"Disconnected SaaS boilerplate for developers to clone and deploy their own SaaS applications.",
 	generator: "v0.app",
 	icons: {
 		icon: "/favicon-32x32.png",

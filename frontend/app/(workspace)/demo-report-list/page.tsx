@@ -13,66 +13,51 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import {
-	FileText,
-	Eye,
-	TrendingUp,
-	AlertCircle,
-	XCircle,
-	MapPin,
-	Building2,
-	Sparkles,
-} from "lucide-react";
+import { FileText, Eye, TrendingUp, AlertCircle, XCircle } from "lucide-react";
 
-// Dummy data for demo reports
+// Dummy data for demo items
 const demoReports = [
 	{
 		id: "demo-1",
-		address: "2847 Broadway, Manhattan, NY 10025",
-		clientName: "Sarah Johnson",
+		address: "Item 1",
+		clientName: "Person 1",
 		status: "ready",
 		createdAt: "2024-01-15T10:30:00Z",
-		zoning: "R7-2",
 	},
 	{
 		id: "demo-2",
-		address: "456 Atlantic Ave, Brooklyn, NY 11217",
-		clientName: "Michael Chen",
+		address: "Item 2",
+		clientName: "Person 2",
 		status: "ready",
 		createdAt: "2024-01-14T14:20:00Z",
-		zoning: "R6B",
 	},
 	{
 		id: "demo-3",
-		address: "789 Broadway, Manhattan, NY 10003",
-		clientName: "Emily Rodriguez",
+		address: "Item 3",
+		clientName: "Person 3",
 		status: "ready",
 		createdAt: "2024-01-13T09:15:00Z",
-		zoning: "R8A",
 	},
 	{
 		id: "demo-4",
-		address: "321 5th Ave, Brooklyn, NY 11215",
-		clientName: "David Kim",
+		address: "Item 4",
+		clientName: "Person 4",
 		status: "pending",
 		createdAt: "2024-01-12T16:45:00Z",
-		zoning: "R7-2",
 	},
 	{
 		id: "demo-5",
-		address: "654 Lexington Ave, Manhattan, NY 10022",
-		clientName: "Jennifer Martinez",
+		address: "Item 5",
+		clientName: "Person 5",
 		status: "ready",
 		createdAt: "2024-01-11T11:00:00Z",
-		zoning: "R10",
 	},
 	{
 		id: "demo-6",
-		address: "987 Court St, Brooklyn, NY 11231",
-		clientName: "Robert Taylor",
+		address: "Item 6",
+		clientName: "Person 6",
 		status: "ready",
 		createdAt: "2024-01-10T13:30:00Z",
-		zoning: "R6A",
 	},
 ];
 
@@ -95,32 +80,30 @@ export default function DemoReportListPage() {
 	return (
 		<div className="p-8">
 			<div className="max-w-6xl mx-auto">
-				{/* Greeting */}
 				<div className="mb-6">
 					<h1 className="text-2xl font-semibold text-[#37322F]">
-						Hi Elie
+						Sample Dashboard
 					</h1>
 				</div>
 
-				{/* Dashboard Section 1: Report Complexity */}
 				<div className="mb-6">
 					<h2 className="text-lg font-semibold text-[#37322F] mb-4">
-						Report Dashboard
+						Metrics
 					</h2>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 						<Card className="bg-[#FEE2A9]/20 border-[#4090C2]/30">
 							<CardHeader className="pb-0 pt-1.5 px-4">
 								<CardTitle className="text-xs font-medium text-[#605A57] flex items-center gap-1.5">
 									<TrendingUp className="size-3 text-[#4090C2]" />
-									Low Effort
+									Metric 1
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="pt-0 pb-1.5 px-4">
 								<p className="text-xl font-semibold text-[#37322F]">
-									23
+									—
 								</p>
 								<p className="text-xs text-[#605A57] mt-0">
-									addresses appear to be low effort
+									Placeholder value
 								</p>
 							</CardContent>
 						</Card>
@@ -128,15 +111,15 @@ export default function DemoReportListPage() {
 							<CardHeader className="pb-0 pt-1.5 px-4">
 								<CardTitle className="text-xs font-medium text-[#605A57] flex items-center gap-1.5">
 									<AlertCircle className="size-3 text-[#D59285]" />
-									High Complexity
+									Metric 2
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="pt-0 pb-1.5 px-4">
 								<p className="text-xl font-semibold text-[#37322F]">
-									15
+									—
 								</p>
 								<p className="text-xs text-[#605A57] mt-0">
-									addresses with high complexity
+									Placeholder value
 								</p>
 							</CardContent>
 						</Card>
@@ -144,74 +127,25 @@ export default function DemoReportListPage() {
 							<CardHeader className="pb-0 pt-1.5 px-4">
 								<CardTitle className="text-xs font-medium text-[#605A57] flex items-center gap-1.5">
 									<XCircle className="size-3 text-[#D59285]" />
-									Not Feasible
+									Metric 3
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="pt-0 pb-1.5 px-4">
 								<p className="text-xl font-semibold text-[#37322F]">
-									3
+									—
 								</p>
 								<p className="text-xs text-[#605A57] mt-0">
-									addresses that aren't feasible
+									Placeholder value
 								</p>
 							</CardContent>
 						</Card>
 					</div>
 				</div>
 
-				{/* Dashboard Section 2: Insights */}
-				<div className="mb-6">
-					<h2 className="text-lg font-semibold text-[#37322F] mb-4">
-						Insights
-					</h2>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-						<Card className="bg-[#ADCCD3]/15 border-[#ADCCD3]/30">
-							<CardHeader className="pb-0 pt-1.5 px-4">
-								<CardTitle className="text-xs font-medium text-[#605A57] flex items-center gap-1.5">
-									<MapPin className="size-3 text-[#4090C2]" />
-									Most Popular Borough
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="pt-0 pb-1.5 px-4">
-								<p className="text-base font-semibold text-[#37322F]">
-									Manhattan
-								</p>
-							</CardContent>
-						</Card>
-						<Card className="bg-[#ADCCD3]/15 border-[#ADCCD3]/30">
-							<CardHeader className="pb-0 pt-1.5 px-4">
-								<CardTitle className="text-xs font-medium text-[#605A57] flex items-center gap-1.5">
-									<Building2 className="size-3 text-[#4090C2]" />
-									Most Common Zones
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="pt-0 pb-1.5 px-4">
-								<p className="text-base font-semibold text-[#37322F]">
-									R7-2
-								</p>
-							</CardContent>
-						</Card>
-						<Card className="bg-[#ADCCD3]/15 border-[#ADCCD3]/30">
-							<CardHeader className="pb-0 pt-1.5 px-4">
-								<CardTitle className="text-xs font-medium text-[#605A57] flex items-center gap-1.5">
-									<Sparkles className="size-3 text-[#4090C2]" />
-									Summarize Inquiries
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="pt-0 pb-1.5 px-4">
-								<p className="text-xs text-[#37322F]">
-									Converting Single Family to Multi family
-								</p>
-							</CardContent>
-						</Card>
-					</div>
-				</div>
-
-				{/* Table Section */}
 				<div className="flex items-center gap-2 mb-6">
 					<FileText className="size-6 text-[#4090C2]" />
 					<h2 className="text-xl font-semibold text-[#37322F]">
-						Sample Reports
+						Items
 					</h2>
 				</div>
 
@@ -225,13 +159,10 @@ export default function DemoReportListPage() {
 							<TableHeader>
 								<TableRow>
 									<TableHead className="text-[#37322F]">
-										Address
+										List
 									</TableHead>
 									<TableHead className="text-[#37322F]">
 										Client
-									</TableHead>
-									<TableHead className="text-[#37322F]">
-										Zoning
 									</TableHead>
 									<TableHead className="text-[#37322F]">
 										Created At
@@ -254,24 +185,16 @@ export default function DemoReportListPage() {
 											{report.clientName}
 										</TableCell>
 										<TableCell className="text-[#37322F]">
-											<Badge
-												variant="outline"
-												className="bg-[#4090C2]/10 text-[#4090C2] border-[#4090C2]"
-											>
-												{report.zoning}
-											</Badge>
-										</TableCell>
-										<TableCell className="text-[#37322F]">
 											{format(
 												new Date(report.createdAt),
-												"MMM d, yyyy 'at' h:mm a"
+												"MMM d, yyyy 'at' h:mm a",
 											)}
 										</TableCell>
 										<TableCell>
 											<Badge
 												variant="outline"
 												className={`text-xs ${getStatusColor(
-													report.status
+													report.status,
 												)}`}
 											>
 												{report.status}
@@ -283,7 +206,7 @@ export default function DemoReportListPage() {
 												size="sm"
 												onClick={() =>
 													router.push(
-														`/demo-report/${report.id}`
+														`/demo-report/${report.id}`,
 													)
 												}
 												className="flex items-center gap-2"

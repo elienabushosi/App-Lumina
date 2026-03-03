@@ -28,125 +28,100 @@ export default function DemoReportPage() {
 	const router = useRouter();
 	const reportId = params.id as string;
 
-	// Dummy data for demonstration
+	// Dummy data for demonstration (boilerplate values)
 	const propertyData = {
-		address: "2847 Broadway, Manhattan, NY 10025",
+		address: "Item 1",
 		lotDetails: {
-			block: "1892",
-			lot: "15",
-			taxLot: "1001892015",
-			lotArea: "2,500 sq ft",
-			lotDepth: "100 ft",
-			lotFrontage: "25 ft",
-			lotType: "Interior",
+			block: "Sample value 1",
+			lot: "Sample value 2",
+			taxLot: "Sample value 3",
+			lotArea: "Sample value 4",
+			lotDepth: "Sample value 5",
+			lotFrontage: "Sample value 6",
+			lotType: "Sample value 7",
 		},
 		zoning: {
-			classification: "R7-2",
+			classification: "Sample classification",
 			description:
-				"Residential district with contextual zoning regulations",
-			floorAreaRatio: "3.44",
-			maximumBuildingHeight: "70 ft",
-			requiredYards: "Front: 15 ft, Rear: 30 ft",
+				"Short boilerplate description for this sample item.",
+			floorAreaRatio: "Sample metric 1",
+			maximumBuildingHeight: "Sample metric 2",
+			requiredYards: "Sample metric 3",
 		},
 		zoningDetails: {
-			maximumFAR: "3.44",
+			maximumFAR: "Sample metric A",
 			densityRequirements:
-				"Maximum 1 dwelling unit per 400 sq ft of lot area",
-			minimumBaseHeight: "40 ft",
-			maximumBaseHeight: "60 ft",
-			maximumBuildingHeight: "70 ft",
+				"Sample density description for this item.",
+			minimumBaseHeight: "Sample metric B",
+			maximumBaseHeight: "Sample metric C",
+			maximumBuildingHeight: "Sample metric D",
 			yardRequirements: {
-				front: "15 ft minimum",
-				side: "0 ft (interior lot)",
-				rear: "30 ft minimum",
+				front: "Sample yard value 1",
+				side: "Sample yard value 2",
+				rear: "Sample yard value 3",
 			},
 			parkingRequirements:
-				"1 space per 2 dwelling units (if parking provided)",
-			streetTreeRequirements: "1 tree per 25 ft of street frontage",
+				"Sample parking requirement description.",
+			streetTreeRequirements:
+				"Sample street tree requirement description.",
 		},
 		buildingInfo: {
-			yearBuilt: "1925",
-			numberOfStories: "4",
-			numberOfUnits: "8",
-			buildingClass: "C1 - Walk-up apartments",
-			totalBuildingArea: "8,600 sq ft",
-			residentialUnits: "8",
-			commercialUnits: "0",
+			yearBuilt: "Sample value 8",
+			numberOfStories: "Sample value 9",
+			numberOfUnits: "Sample value 10",
+			buildingClass: "Sample value 11",
+			totalBuildingArea: "Sample value 12",
+			residentialUnits: "Sample value 13",
+			commercialUnits: "Sample value 14",
 		},
 		landUse: {
-			designation: "Residential Multi-Unit",
-			primaryUse: "Residential",
-			secondaryUse: "None",
-			zoningMap: "12a",
+			designation: "Sample designation",
+			primaryUse: "Sample primary use",
+			secondaryUse: "Sample secondary use",
+			zoningMap: "Sample map reference",
 		},
 		allowedUses: [
-			"Residential buildings (apartments, condominiums)",
-			"Community facilities (schools, places of worship)",
-			"Accessory parking (with restrictions)",
-			"Home occupations (with limitations)",
+			"Example allowed use 1",
+			"Example allowed use 2",
+			"Example allowed use 3",
+			"Example allowed use 4",
 		],
 		restrictedUses: [
-			"Commercial retail (ground floor commercial requires special permit)",
-			"Industrial uses",
-			"Warehouses",
-			"Automotive repair shops",
+			"Example restricted use 1",
+			"Example restricted use 2",
+			"Example restricted use 3",
+			"Example restricted use 4",
 		],
 		feasibleOptions: [
 			{
-				title: "Build on Currently Unused Land",
+				title: "Scenario 1",
 				description:
-					"The rear yard area (approximately 500 sq ft) could accommodate a small accessory structure or expansion, subject to zoning regulations and setback requirements.",
+					"Short boilerplate description for this sample scenario.",
+				feasibility: "High",
+				considerations: [
+					"Example consideration 1",
+					"Example consideration 2",
+					"Example consideration 3",
+				],
+			},
+			{
+				title: "Scenario 2",
+				description:
+					"Short boilerplate description for a second sample scenario.",
 				feasibility: "Moderate",
 				considerations: [
-					"Must maintain required rear yard of 30 ft",
-					"Accessory structure limited to 25% of lot coverage",
-					"May require special permit for certain uses",
+					"Example consideration 4",
+					"Example consideration 5",
 				],
 			},
 			{
-				title: "Convert Single-Family to Multi-Residential",
+				title: "Scenario 3",
 				description:
-					"Not applicable - property is already multi-residential (8 units). However, the building could potentially be expanded or reconfigured within zoning limits.",
-				feasibility: "N/A",
-				considerations: [
-					"Current FAR of 3.44 allows for potential vertical expansion",
-					"Maximum height of 70 ft provides room for additional stories",
-					"Would require careful analysis of existing structure",
-				],
-			},
-			{
-				title: "Convert Multi-Residential to Single-Family",
-				description:
-					"Technically feasible but economically challenging. The 8-unit building could be converted to a single-family residence, though this would reduce income potential significantly.",
+					"Short boilerplate description for a third sample scenario.",
 				feasibility: "Low",
 				considerations: [
-					"Zoning allows single-family use in R7-2 district",
-					"Would require significant renovation and loss of rental income",
-					"May require variance for certain modifications",
-				],
-			},
-			{
-				title: "Vertical Expansion",
-				description:
-					"The building currently has 4 stories. With a maximum height of 70 ft and current FAR of 3.44, there may be potential to add 1-2 additional stories, subject to structural analysis and code compliance.",
-				feasibility: "Moderate to High",
-				considerations: [
-					"Must comply with 70 ft height limit",
-					"Structural engineering required",
-					"May require elevator installation for accessibility",
-					"Setback requirements must be maintained",
-				],
-			},
-			{
-				title: "Ground Floor Commercial Conversion",
-				description:
-					"R7-2 zoning allows ground floor commercial with special permit. The ground floor could potentially be converted to retail or office space, subject to DOB approval and special permit process.",
-				feasibility: "Moderate",
-				considerations: [
-					"Requires special permit from City Planning Commission",
-					"Must maintain residential units above",
-					"Parking requirements may apply",
-					"Accessibility compliance required",
+					"Example consideration 6",
+					"Example consideration 7",
 				],
 			},
 		],
@@ -164,11 +139,11 @@ export default function DemoReportPage() {
 							className="mb-4"
 						>
 							<ArrowLeft className="size-4 mr-2" />
-							Back to Your Reports
+							Back to Items
 						</Button>
 						<div>
 							<h1 className="text-3xl font-semibold text-[#37322F] mb-2">
-								Property Zoning Report
+								Sample Item Report
 							</h1>
 							<div className="flex items-center gap-2 text-[#605A57]">
 								<MapPin className="size-4" />
@@ -216,18 +191,18 @@ export default function DemoReportPage() {
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<MapPin className="size-5 text-[#4090C2]" />
-							<CardTitle>Property Location</CardTitle>
+							<CardTitle>Item Overview</CardTitle>
 						</div>
 						<CardDescription>
-							Map and location visualization
+							High-level overview for this sample item
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<div className="w-full flex justify-center">
 							<div className="w-full max-w-2xl rounded-lg overflow-hidden border border-[rgba(55,50,47,0.12)] bg-gray-100">
 								<img
-									src="/demo-reports/2847Broadway.png"
-									alt={`Property map for ${propertyData.address}`}
+									src="/placeholder.png"
+									alt="Placeholder image for this item"
 									className="w-full h-auto object-contain"
 									onError={(e) => {
 										// Fallback if image doesn't exist
@@ -250,10 +225,10 @@ export default function DemoReportPage() {
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<Ruler className="size-5 text-[#4090C2]" />
-							<CardTitle>Lot Details</CardTitle>
+							<CardTitle>Item Details</CardTitle>
 						</div>
 						<CardDescription>
-							Property identification and lot specifications
+							Example identifying and descriptive fields
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -323,10 +298,10 @@ export default function DemoReportPage() {
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<FileText className="size-5 text-[#4090C2]" />
-							<CardTitle>Zoning Classification</CardTitle>
+							<CardTitle>Section A</CardTitle>
 						</div>
 						<CardDescription>
-							Zoning district regulations and requirements
+							Example section with sample metrics
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -375,22 +350,22 @@ export default function DemoReportPage() {
 					</CardContent>
 				</Card>
 
-				{/* Building Lot Information */}
+				{/* Section B */}
 				<Card>
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<Building className="size-5 text-[#4090C2]" />
-							<CardTitle>Building Lot Information</CardTitle>
+							<CardTitle>Section B</CardTitle>
 						</div>
 						<CardDescription>
-							Current building characteristics and specifications
+							Example fields for this item
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Year Built
+									Label 1
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.buildingInfo.yearBuilt}
@@ -398,7 +373,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Number of Stories
+									Label 2
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.buildingInfo.numberOfStories}
@@ -406,7 +381,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Number of Units
+									Label 3
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.buildingInfo.numberOfUnits}
@@ -414,7 +389,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Building Class
+									Label 4
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.buildingInfo.buildingClass}
@@ -422,7 +397,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Total Building Area
+									Label 5
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{
@@ -433,7 +408,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Residential Units
+									Label 6
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.buildingInfo.residentialUnits}
@@ -443,22 +418,22 @@ export default function DemoReportPage() {
 					</CardContent>
 				</Card>
 
-				{/* Land Use Designation */}
+				{/* Section C */}
 				<Card>
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<MapPin className="size-5 text-[#4090C2]" />
-							<CardTitle>Land Use Designation</CardTitle>
+							<CardTitle>Section C</CardTitle>
 						</div>
 						<CardDescription>
-							Official land use classification
+							Example fields for this item
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Designation
+									Label 1
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.landUse.designation}
@@ -466,7 +441,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Primary Use
+									Label 2
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.landUse.primaryUse}
@@ -474,7 +449,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Secondary Use
+									Label 3
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.landUse.secondaryUse ||
@@ -483,7 +458,7 @@ export default function DemoReportPage() {
 							</div>
 							<div>
 								<p className="text-sm text-[#605A57] mb-1">
-									Zoning Map
+									Label 4
 								</p>
 								<p className="font-medium text-[#37322F]">
 									{propertyData.landUse.zoningMap}
@@ -493,42 +468,36 @@ export default function DemoReportPage() {
 					</CardContent>
 				</Card>
 
-				{/* Zoning Constraints & Requirements */}
+				{/* Section D */}
 				<Card>
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<FileText className="size-5 text-[#4090C2]" />
-							<CardTitle>
-								Zoning Constraints & Requirements
-							</CardTitle>
+							<CardTitle>Section D</CardTitle>
 						</div>
 						<CardDescription>
-							Detailed zoning regulations affecting development
-							feasibility
+							Example constraints and requirements
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<div className="space-y-6">
-							{/* Maximum F.A.R. */}
 							<div>
 								<p className="text-sm font-medium text-[#605A57] mb-1">
-									Maximum F.A.R. (Floor Area Ratio)
+									Label 1
 								</p>
 								<p className="text-base text-[#37322F] font-semibold">
 									{propertyData.zoningDetails.maximumFAR}
 								</p>
 								<p className="text-xs text-[#605A57] mt-1">
-									Limits total buildable floor area — often
-									the primary economic constraint.
+									Sample description for this field.
 								</p>
 							</div>
 
 							<Separator />
 
-							{/* Density Requirements */}
 							<div>
 								<p className="text-sm font-medium text-[#605A57] mb-1">
-									Density Requirements
+									Label 2
 								</p>
 								<p className="text-base text-[#37322F] font-semibold">
 									{
@@ -537,18 +506,16 @@ export default function DemoReportPage() {
 									}
 								</p>
 								<p className="text-xs text-[#605A57] mt-1">
-									Controls number of dwelling units, affecting
-									layout, circulation, and feasibility.
+									Sample description for this field.
 								</p>
 							</div>
 
 							<Separator />
 
-							{/* Height Requirements */}
 							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 								<div>
 									<p className="text-sm font-medium text-[#605A57] mb-1">
-										Minimum Base Height
+										Label 3
 									</p>
 									<p className="text-base text-[#37322F] font-semibold">
 										{
@@ -557,13 +524,12 @@ export default function DemoReportPage() {
 										}
 									</p>
 									<p className="text-xs text-[#605A57] mt-1">
-										Defines required streetwall height for
-										contextual zoning districts.
+										Sample description for this field.
 									</p>
 								</div>
 								<div>
 									<p className="text-sm font-medium text-[#605A57] mb-1">
-										Maximum Base Height
+										Label 4
 									</p>
 									<p className="text-base text-[#37322F] font-semibold">
 										{
@@ -572,13 +538,12 @@ export default function DemoReportPage() {
 										}
 									</p>
 									<p className="text-xs text-[#605A57] mt-1">
-										Caps the streetwall before setbacks are
-										required.
+										Sample description for this field.
 									</p>
 								</div>
 								<div>
 									<p className="text-sm font-medium text-[#605A57] mb-1">
-										Maximum Building Height
+										Label 5
 									</p>
 									<p className="text-base text-[#37322F] font-semibold">
 										{
@@ -587,23 +552,21 @@ export default function DemoReportPage() {
 										}
 									</p>
 									<p className="text-xs text-[#605A57] mt-1">
-										Absolute vertical limit; often the final
-										constraint on massing.
+										Sample description for this field.
 									</p>
 								</div>
 							</div>
 
 							<Separator />
 
-							{/* Yard Requirements */}
 							<div>
 								<p className="text-sm font-medium text-[#605A57] mb-3">
-									Yard Requirements
+									Label 6
 								</p>
 								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 									<div>
 										<p className="text-xs text-[#605A57] mb-1">
-											Front
+											Sub-label 1
 										</p>
 										<p className="text-base text-[#37322F] font-semibold">
 											{
@@ -614,7 +577,7 @@ export default function DemoReportPage() {
 									</div>
 									<div>
 										<p className="text-xs text-[#605A57] mb-1">
-											Side
+											Sub-label 2
 										</p>
 										<p className="text-base text-[#37322F] font-semibold">
 											{
@@ -625,7 +588,7 @@ export default function DemoReportPage() {
 									</div>
 									<div>
 										<p className="text-xs text-[#605A57] mb-1">
-											Rear
+											Sub-label 3
 										</p>
 										<p className="text-base text-[#37322F] font-semibold">
 											{
@@ -636,17 +599,15 @@ export default function DemoReportPage() {
 									</div>
 								</div>
 								<p className="text-xs text-[#605A57] mt-3">
-									Controls setbacks, light, air, and spatial
-									relationships to neighbors.
+									Sample description for this field.
 								</p>
 							</div>
 
 							<Separator />
 
-							{/* Parking Requirements */}
 							<div>
 								<p className="text-sm font-medium text-[#605A57] mb-1">
-									Parking Requirements
+									Label 7
 								</p>
 								<p className="text-base text-[#37322F] font-semibold">
 									{
@@ -655,17 +616,15 @@ export default function DemoReportPage() {
 									}
 								</p>
 								<p className="text-xs text-[#605A57] mt-1">
-									May affect site planning, building
-									footprint, and overall development costs.
+									Sample description for this field.
 								</p>
 							</div>
 
 							<Separator />
 
-							{/* Street Tree Requirements */}
 							<div>
 								<p className="text-sm font-medium text-[#605A57] mb-1">
-									Street Tree Requirements
+									Label 8
 								</p>
 								<p className="text-base text-[#37322F] font-semibold">
 									{
@@ -674,24 +633,23 @@ export default function DemoReportPage() {
 									}
 								</p>
 								<p className="text-xs text-[#605A57] mt-1">
-									Affects site planning, sidewalk design, and
-									DOB approval.
+									Sample description for this field.
 								</p>
 							</div>
 						</div>
 					</CardContent>
 				</Card>
 
-				{/* Allowed vs. Restricted Uses */}
+				{/* Highlights vs. Limitations */}
 				<div className="grid md:grid-cols-2 gap-6">
 					<Card>
 						<CardHeader>
 							<div className="flex items-center gap-2">
 								<CheckCircle2 className="size-5 text-green-600" />
-								<CardTitle>Allowed Uses</CardTitle>
+								<CardTitle>Highlights</CardTitle>
 							</div>
 							<CardDescription>
-								Permitted uses under current zoning
+								Example positive aspects for this item
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -713,10 +671,10 @@ export default function DemoReportPage() {
 						<CardHeader>
 							<div className="flex items-center gap-2">
 								<XCircle className="size-5 text-red-600" />
-								<CardTitle>Restricted Uses</CardTitle>
+								<CardTitle>Limitations</CardTitle>
 							</div>
 							<CardDescription>
-								Uses not permitted or requiring special permits
+								Example limitations or caveats
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -737,15 +695,15 @@ export default function DemoReportPage() {
 					</Card>
 				</div>
 
-				{/* Feasible Development Options */}
+				{/* Scenarios */}
 				<Card>
 					<CardHeader>
 						<div className="flex items-center gap-2">
 							<AlertCircle className="size-5 text-[#4090C2]" />
-							<CardTitle>Feasible Development Options</CardTitle>
+							<CardTitle>Scenarios</CardTitle>
 						</div>
 						<CardDescription>
-							Analysis of potential development scenarios
+							Example scenarios related to this sample item
 						</CardDescription>
 					</CardHeader>
 					<CardContent>

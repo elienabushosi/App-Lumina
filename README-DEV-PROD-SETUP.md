@@ -1,271 +1,113 @@
-# Development vs Production Environment Setup
+# Development vs Production (SaaS Template)
 
-This document explains how the project switches between development and production environments.
+This document explains how the SaaS Template switches between development and production environments.
 
 ## Overview
 
-The project uses environment-specific configuration files (`.env.development` and `.env.production`) that are automatically loaded based on the `NODE_ENV` environment variable. This allows you to easily switch between development and production configurations using npm scripts.
+The project uses environment-specific configuration files (`.env.development` and `.env.production`) that are loaded based on `NODE_ENV`. Copy from `env.example` in each of `backend/` and `frontend/` to create your `.env.development` and `.env.production`; do not commit these files (they are gitignored).
 
-## File Structure
+## File structure
 
 ```
-ProjectLindero-fresh/
+SaaS Template/
 ├── backend/
-│   ├── .env.development      # Development environment variables
-│   ├── .env.production        # Production environment variables
-│   ├── .env                   # (Optional) Local overrides (gitignored)
+│   ├── env.example           # Copy to .env.development / .env.production
+│   ├── .env.development      # Your dev vars (gitignored)
+│   ├── .env.production       # Your prod vars (gitignored)
+│   ├── .env                  # (Optional) Local overrides (gitignored)
 │   └── lib/
-│       └── supabase.js        # Loads env files based on NODE_ENV
+│       └── supabase.js       # Loads .env.${NODE_ENV}
 ├── frontend/
-│   ├── .env.development       # Development environment variables
-│   ├── .env.production        # Production environment variables
-│   ├── .env.local             # (Optional) Local overrides (gitignored)
-│   └── lib/
-│       └── config.ts          # Centralized config using env variables
-└── package.json               # Root scripts for dev/prod
+│   ├── env.example           # Copy to .env.development / .env.production
+│   ├── .env.development      # Your dev vars (gitignored)
+│   ├── .env.production       # Your prod vars (gitignored)
+│   ├── .env.local            # (Optional) Local overrides (gitignored)
+│   └── (Next.js loads .env.* by NODE_ENV)
+└── package.json              # Root scripts for dev/prod
 ```
 
-## How It Works
+## How it works
 
 ### Backend
 
-The backend uses `dotenv` to load environment-specific files:
-
-1. **Environment Detection**: Checks `NODE_ENV` (defaults to `development`)
-2. **File Loading**: Loads `.env.${NODE_ENV}` (e.g., `.env.development` or `.env.production`)
-3. **Override Support**: Also loads base `.env` if it exists (for local overrides, doesn't override existing vars)
-
-**Location**: `backend/lib/supabase.js`
-
-```javascript
-const nodeEnv = process.env.NODE_ENV || 'development';
-const envFile = `.env.${nodeEnv}`;
-dotenv.config({ path: join(__dirname, '..', envFile) });
-```
+- **Environment:** `NODE_ENV` (default `development`) determines which file is loaded.
+- **Files:** `backend/lib/supabase.js` (and dotenv) load `.env.${NODE_ENV}` from `backend/`, then optional `.env` for overrides.
+- **Port:** Backend runs on **3002** (set in `env.example` / your `.env.development`).
 
 ### Frontend
 
-Next.js automatically loads environment files based on `NODE_ENV`:
+- Next.js loads `.env.development` when `NODE_ENV=development`, `.env.production` when building/running for production.
+- Use `NEXT_PUBLIC_API_URL` for the backend URL (e.g. `http://localhost:3002` in dev, your deployed API URL in prod).
 
-- `NODE_ENV=development` → Loads `.env.development`
-- `NODE_ENV=production` → Loads `.env.production`
+## Environment variables
 
-**Location**: `frontend/lib/config.ts` - Centralized configuration that reads from environment variables.
+### Backend (`backend/.env.development` and `backend/.env.production`)
 
-All API calls use `config.apiUrl` instead of hardcoded URLs.
+| Variable                     | Development              | Production                    |
+|-----------------------------|--------------------------|-------------------------------|
+| SUPABASE_URL / keys         | Placeholder or your keys | Your Supabase project        |
+| STRIPE_*                    | Test keys or placeholder | Live keys when going live    |
+| RESEND_API_KEY              | Optional (unset = no email) | Set for production email  |
+| FRONTEND_URL                | `http://localhost:3000`  | `https://yourdomain.com`     |
+| PORT                        | `3002`                   | `3002` (or host default)     |
+| GEOSERVICE_API_KEY          | Optional                 | Optional                      |
 
-## Environment Variables
+### Frontend (`frontend/.env.development` and `frontend/.env.production`)
 
-### Backend Environment Variables
+| Variable                         | Development              | Production              |
+|----------------------------------|--------------------------|-------------------------|
+| NEXT_PUBLIC_API_URL              | `http://localhost:3002`  | `https://your-api-url`  |
+| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY  | Optional                 | Optional                 |
+| NEXT_PUBLIC_STRIPE_*             | Placeholder or test IDs  | Live product/price IDs  |
 
-**File**: `backend/.env.development` and `backend/.env.production`
+Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser.
 
-| Variable | Development | Production | Description |
-|----------|-------------|------------|-------------|
-| `NODE_ENV` | `development` | `production` | Environment identifier |
-| `SUPABASE_URL` | Same for both | Same for both | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Same for both | Same for both | Supabase anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Same for both | Same for both | Supabase service role key (admin) |
-| `FRONTEND_URL` | `http://localhost:3000` | `https://yourdomain.com` | Frontend application URL |
-| `PORT` | `3002` | `3002` | Backend server port |
-| `GEOSERVICE_API_KEY` | Same for both | Same for both | Geoservice API key |
+## NPM scripts
 
-### Frontend Environment Variables
-
-**File**: `frontend/.env.development` and `frontend/.env.production`
-
-| Variable | Development | Production | Description |
-|----------|-------------|------------|-------------|
-| `NODE_ENV` | `development` | `production` | Environment identifier |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:3002` | `https://api.yourdomain.com` | Backend API URL |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Your key | Your key | Google Maps API key |
-
-**Note**: Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. All other variables are server-side only.
-
-## NPM Scripts
-
-### Root Level (Monorepo)
+From **repo root**:
 
 ```bash
 # Development
-npm run dev              # Run both frontend & backend in dev mode
-npm run dev:frontend     # Run frontend only (dev)
-npm run dev:backend      # Run backend only (dev)
-npm run dev:all          # Run both (same as npm run dev)
+npm run dev              # Run both frontend & backend (dev)
+npm run dev:frontend     # Frontend only (port 3000)
+npm run dev:backend      # Backend only (port 3002)
 
-# Production
-npm run prod             # Run both frontend & backend in prod mode
-npm run prod:frontend    # Run frontend only (prod)
-npm run prod:backend     # Run backend only (prod)
-npm run prod:all         # Run both (same as npm run prod)
+# Production (local run with prod env)
+npm run prod             # Both in prod mode
+npm run prod:frontend
+npm run prod:backend
+
+# Build frontend for production
+npm run build            # next build
 ```
 
-### Backend Scripts
+Backend scripts set `NODE_ENV=development` or `NODE_ENV=production`; frontend uses Next.js defaults.
 
-**File**: `backend/package.json`
+## Setting up environments
 
-```bash
-npm run dev      # NODE_ENV=development node --watch server.js
-npm run prod     # NODE_ENV=production node server.js
-npm start        # NODE_ENV=production node server.js (same as prod)
-```
+1. **Create env files** (from examples):
+   - `backend/.env.development`, `backend/.env.production`
+   - `frontend/.env.development`, `frontend/.env.production`
 
-### Frontend Scripts
+2. **Development:** Start with placeholders from `env.example` so the app runs; replace with real keys when you connect Supabase, Stripe, Resend (see **CHECKLIST-SAAS-BOILERPLATE.md**).
 
-**File**: `frontend/package.json`
+3. **Production (when you deploy):**
+   - Set `FRONTEND_URL` and backend vars in your backend host (e.g. Railway).
+   - Set `NEXT_PUBLIC_API_URL` and frontend vars in your frontend host (e.g. Vercel).
 
-```bash
-npm run dev      # NODE_ENV=development next dev
-npm run prod     # NODE_ENV=production next start
-npm run build    # NODE_ENV=production next build
-npm start        # NODE_ENV=production next start (same as prod)
-```
+## Security
 
-## Usage Examples
-
-### Running in Development Mode
-
-```bash
-# From root directory
-npm run dev
-
-# This will:
-# 1. Set NODE_ENV=development
-# 2. Backend loads backend/.env.development
-# 3. Frontend loads frontend/.env.development
-# 4. API calls go to http://localhost:3002
-# 5. Frontend runs on http://localhost:3000
-```
-
-### Running in Production Mode
-
-```bash
-# From root directory
-npm run prod
-
-# This will:
-# 1. Set NODE_ENV=production
-# 2. Backend loads backend/.env.production
-# 3. Frontend loads frontend/.env.production
-# 4. API calls go to https://api.yourdomain.com
-# 5. Frontend runs on production port
-```
-
-## Setting Up Your Environments
-
-### Initial Setup
-
-1. **Create environment files** (if not already created):
-   - `backend/.env.development`
-   - `backend/.env.production`
-   - `frontend/.env.development`
-   - `frontend/.env.production`
-
-2. **Fill in the values**:
-   - Copy the same Supabase credentials to both dev and prod (for now)
-   - Set `FRONTEND_URL` in production to your actual domain
-   - Set `NEXT_PUBLIC_API_URL` in production to your production API URL
-   - Add your `SUPABASE_SERVICE_ROLE_KEY` if you have it
-   - Add your `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` if you have it
-
-### Updating Production URLs
-
-When deploying to production:
-
-1. **Update `backend/.env.production`**:
-   ```
-   FRONTEND_URL=https://your-actual-domain.com
-   ```
-
-2. **Update `frontend/.env.production`**:
-   ```
-   NEXT_PUBLIC_API_URL=https://api.your-actual-domain.com
-   ```
-
-## How Code Uses Environment Variables
-
-### Backend
-
-All backend code reads from `process.env` after `dotenv.config()` loads the appropriate file:
-
-```javascript
-// backend/lib/supabase.js
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-```
-
-### Frontend
-
-All frontend code uses the centralized `config` object:
-
-```typescript
-// frontend/lib/config.ts
-import { config } from "@/lib/config";
-
-// In any component or utility
-fetch(`${config.apiUrl}/api/reports`)
-```
-
-**All hardcoded `http://localhost:3002` URLs have been replaced with `config.apiUrl`.**
-
-## Local Overrides
-
-You can create local override files that won't be committed:
-
-- `backend/.env` - Overrides for backend (gitignored)
-- `frontend/.env.local` - Overrides for frontend (gitignored)
-
-These files are loaded after the environment-specific files, so they can override values for local testing without affecting the committed environment files.
-
-## Security Notes
-
-1. **Never commit `.env` files** - They're in `.gitignore`
-2. **Never commit `.env.local` files** - They're in `.gitignore`
-3. **Do commit `.env.development` and `.env.production`** - These contain non-sensitive defaults
-4. **For production deployments**: Set environment variables in your hosting platform (Vercel, Railway, etc.) rather than committing sensitive keys
+- **Do not commit** `.env`, `.env.development`, `.env.production`, or `.env.local` – they are in `.gitignore`.
+- **Do commit** `backend/env.example` and `frontend/env.example` (placeholders only, no secrets).
+- For production, set real secrets in your hosting platform’s environment (Vercel, Railway, etc.), not in committed files.
 
 ## Troubleshooting
 
-### Backend not loading correct environment
-
-- Check that `NODE_ENV` is set correctly in your npm script
-- Verify the `.env.development` or `.env.production` file exists in `backend/` directory
-- Check console logs for dotenv loading messages
-
-### Frontend using wrong API URL
-
-- Verify `NEXT_PUBLIC_API_URL` is set in the correct `.env` file
-- Make sure `NODE_ENV` is set when running `npm run dev` or `npm run prod`
-- Check browser console for the actual API URL being used
-- Restart the Next.js dev server after changing `.env` files
-
-### Environment variables not updating
-
-- **Backend**: Restart the server after changing `.env` files
-- **Frontend**: Restart the Next.js dev server (`.env` files are loaded at startup)
-- Clear browser cache if using production build
-
-## Testing the Setup
-
-1. **Test Development**:
-   ```bash
-   npm run dev
-   # Check that API calls go to http://localhost:3002
-   ```
-
-2. **Test Production**:
-   ```bash
-   npm run prod
-   # Check that API calls go to your production URL
-   ```
-
-3. **Verify Environment Loading**:
-   - Backend: Check server startup logs
-   - Frontend: Check browser console for `config.apiUrl` value
+- **Backend wrong env:** Ensure `NODE_ENV` is set by the npm script and the correct `.env.development` / `.env.production` exists in `backend/`.
+- **Frontend wrong API URL:** Check `NEXT_PUBLIC_API_URL` in the correct `.env` file; restart the Next.js dev server after changes.
+- **Env changes not applied:** Restart the backend and/or frontend after editing `.env` files.
 
 ## Summary
 
-- **Development**: `npm run dev` → Uses `.env.development` files → `localhost:3002`
-- **Production**: `npm run prod` → Uses `.env.production` files → Production URLs
-- All hardcoded URLs have been replaced with environment-based configuration
-- Environment switching is automatic based on `NODE_ENV` set by npm scripts
+- **Development:** `npm run dev` → backend and frontend use `.env.development` → API at `http://localhost:3002`.
+- **Production:** Use `.env.production` and set the same vars in your deploy host; set `NEXT_PUBLIC_API_URL` to your deployed backend URL.

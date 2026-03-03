@@ -73,3 +73,10 @@ Builds the frontend for production.
 
 - `frontend` – Next.js app  
 - `backend` – Express API
+
+## More documentation
+
+- **LOCAL-SETUP.md** – Step-by-step local setup (env, install, run, verify).
+- **README-DEV-PROD-SETUP.md** – How dev vs production env and scripts work.
+- **README-Repo-and-Commits.md** – Repo layout and commit workflow.
+- **CHECKLIST-SAAS-BOILERPLATE.md** – How to connect Supabase, Stripe, Resend, and deploy.

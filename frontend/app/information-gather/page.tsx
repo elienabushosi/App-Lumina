@@ -6,18 +6,9 @@ import { ArrowLeft } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
-const REPORT_OPTIONS = [
-	"Building Details",
-	"Lot Details",
-	"Minimum Base Height",
-	"Maximum Base Height",
-	"Maximum Building Height",
-	"Max FAR",
-	"Density Requirements",
-	"Yard Requirements",
-] as const;
+const REPORT_OPTIONS = ["Option 1", "Option 2", "Option 3"] as const;
 
-export default function ReportOptionsPage() {
+export default function InformationGatherPage() {
 	const router = useRouter();
 	const [loading, setLoading] = useState(true);
 	const [selected, setSelected] = useState<Record<string, boolean>>(
@@ -58,7 +49,7 @@ export default function ReportOptionsPage() {
 					Back
 				</button>
 				<h1 className="text-[#37322F] text-2xl sm:text-3xl font-semibold leading-tight font-sans text-center">
-					What do you want included on your report?
+					Page Description
 				</h1>
 				<div className="flex flex-col gap-4">
 					{REPORT_OPTIONS.map((option) => (
@@ -86,7 +77,7 @@ export default function ReportOptionsPage() {
 					onClick={() => {
 						const selections = REPORT_OPTIONS.filter((opt) => selected[opt]);
 						console.log("Report options selected:", selections);
-						router.push("/signupsearch");
+						router.push("/signupbytrying");
 					}}
 					className="w-full h-11 px-6 rounded-md bg-[#D09376] text-white text-sm font-medium font-sans hover:bg-[#D09376]/90 transition-colors flex items-center justify-center"
 				>
