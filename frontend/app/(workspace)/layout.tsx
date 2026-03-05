@@ -48,19 +48,16 @@ function SidebarHeaderContent({
 
 	return (
 		<div className="flex flex-col items-center gap-3 p-4">
-			{/* Logo */}
+			{/* Logo placeholder – replace with your logo image */}
 			<div
-				className={`flex items-center justify-center ${
-					isCollapsed ? "w-10" : "w-full max-w-[140px]"
+				className={`flex items-center justify-center rounded border border-[rgba(55,50,47,0.12)] bg-[rgba(55,50,47,0.08)] ${
+					isCollapsed ? "h-8 w-10" : "h-9 w-full max-w-[140px]"
 				}`}
+				aria-hidden
 			>
-				<img
-					src="/logos/clermontworkspacelogo.png"
-					alt="Company Name"
-					className={`object-contain ${
-						isCollapsed ? "h-8" : "h-auto w-full"
-					}`}
-				/>
+				<span className="text-[9px] text-[#6b7280] text-center px-0.5">
+					{isCollapsed ? "32×32" : "140×36"}
+				</span>
 			</div>
 			{/* Company name - hidden when collapsed */}
 			{!isCollapsed && (
@@ -86,13 +83,9 @@ function getPageTitle(pathname: string): string {
 	} else if (pathname === "/demo-report-list") {
 		return "Sample Dashboard";
 	} else if (pathname.startsWith("/demo-report")) {
-		return "Report Details";
+		return "Item Details";
 	} else if (pathname === "/settings") {
 		return "Settings";
-	} else if (pathname.includes("/assemblagereportview")) {
-		return "Assemblage Report";
-	} else if (pathname.includes("/viewreport")) {
-		return "Report";
 	}
 	return "Home";
 }
@@ -317,10 +310,8 @@ export default function WorkspaceLayout({
 				</SidebarFooter>
 			</Sidebar>
 			<SidebarInset>
-				{/* Header with toggle button - hidden on report view and in print */}
-				<header
-					className={`flex h-16 shrink-0 items-center gap-2 border-b px-4 workspace-page-header ${pathname.includes("/viewreport") || pathname.includes("/assemblagereportview") ? "hidden" : ""}`}
-				>
+				{/* Header with sidebar toggle – visible on all workspace pages */}
+				<header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 workspace-page-header">
 					<SidebarTrigger className="-ml-1" />
 					<h1 className="text-lg font-semibold text-[#37322F]">
 						{pageTitle}

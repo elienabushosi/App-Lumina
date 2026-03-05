@@ -141,7 +141,7 @@ html {
 	backdrop-filter: blur(8.25px);
 }
 
-/* Print styles for report PDF export */
+/* Print styles for PDF export */
 @media print {
 	/* Hide workspace sidebar */
 	[data-sidebar="sidebar"] {
@@ -175,8 +175,8 @@ html {
 		align-items: center !important;
 	}
 
-	/* Center the report content on the page */
-	[data-report-print-root] {
+	/* Center the printable content on the page */
+	[data-print-root] {
 		width: 100% !important;
 		max-width: 72rem !important;
 		margin-left: auto !important;

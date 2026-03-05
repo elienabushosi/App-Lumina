@@ -53,20 +53,20 @@ async function getOrganizationSubscriptionStatus(organizationId) {
 		return null;
 	}
 
-	// Get organization info for free reports
+	// Get organization free tier usage (DB columns: FreeReportsUsed/FreeReportsLimit – rename to FreeTierUsed/FreeTierLimit in DB if desired)
 	const { data: org, error: orgError } = await supabase
 		.from("organizations")
 		.select("FreeReportsUsed, FreeReportsLimit")
 		.eq("IdOrganization", organizationId)
 		.single();
 
-	const freeReportsUsed = org?.FreeReportsUsed || 0;
-	const freeReportsLimit = org?.FreeReportsLimit || 2;
+	const freeTierUsed = org?.FreeReportsUsed ?? 0;
+	const freeTierLimit = org?.FreeReportsLimit ?? 2;
 
 	// Get current team member count
 	const teamMemberCount = await getTeamMemberCount(organizationId);
 
-	// If no subscription exists, return none status with free reports info
+	// If no subscription exists, return none status with free tier info
 	if (!subscription) {
 		return {
 			status: "none",
@@ -74,8 +74,8 @@ async function getOrganizationSubscriptionStatus(organizationId) {
 			trialEndsAt: null,
 			currentPeriodEnd: null,
 			cancelAtPeriodEnd: false,
-			freeReportsUsed: freeReportsUsed,
-			freeReportsLimit: freeReportsLimit,
+			freeTierUsed,
+			freeTierLimit,
 			quantity: teamMemberCount,
 			subscription: null,
 		};
@@ -88,8 +88,8 @@ async function getOrganizationSubscriptionStatus(organizationId) {
 		trialEndsAt: subscription.TrialEndsAt,
 		currentPeriodEnd: subscription.CurrentPeriodEnd,
 		cancelAtPeriodEnd: subscription.CancelAtPeriodEnd || false,
-		freeReportsUsed: freeReportsUsed, // Still track even with subscription
-		freeReportsLimit: freeReportsLimit,
+		freeTierUsed, // Still track even with subscription
+		freeTierLimit,
 		quantity: subscription.Quantity || 1,
 		subscription: subscription,
 	};
