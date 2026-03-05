@@ -638,6 +638,15 @@ export default function SettingsPage() {
 													{/* Cancel Subscription Confirmation Dialog */}
 													<AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
 														<AlertDialogContent>
+															{/* Logo placeholder */}
+															<div className="flex justify-center mb-4">
+																<div
+																	className="h-8 w-32 sm:h-9 sm:w-36 bg-[rgba(55,50,47,0.08)] rounded border border-[rgba(55,50,47,0.12)] flex items-center justify-center"
+																	aria-hidden
+																>
+																	<span className="text-[10px] text-[#6b7280] text-center">144×36</span>
+																</div>
+															</div>
 															<AlertDialogHeader>
 																<AlertDialogTitle>Sorry to see you go!</AlertDialogTitle>
 																<AlertDialogDescription>
@@ -827,7 +836,7 @@ export default function SettingsPage() {
 													const annualPrice = group.prices.find(p => p.interval === 'year');
 													const selectedPrice = selectedBillingInterval === 'month' ? monthlyPrice : annualPrice;
 
-													// Calculate savings for annual
+													// Annual discount calculation – product-agnostic; works with any Stripe monthly/annual prices
 													const monthlyAnnualCost = monthlyPrice?.amount ? monthlyPrice.amount * 12 : 0;
 													const annualCost = annualPrice?.amount || 0;
 													const savings = monthlyAnnualCost - annualCost;
@@ -859,14 +868,11 @@ export default function SettingsPage() {
 																{/* Features List */}
 																<div className="space-y-3">
 																{[
-																	"Unlimited reports",
-																	"Residential NYC addresses(only)",
-																	"Main Page 1",
-																	"Assemblage",
-																	"Zoning Restriction Insights",
-																	"High Requirement Data",
-																	"Zone Lot Coverage Data",
-																	"Yard Requirements"
+																	"Feature 1",
+																	"Feature 2",
+																	"Feature 3",
+																	"Feature 4",
+																	"Feature 5",
 																].map((feature) => (
 																		<div key={feature} className="flex items-center gap-3">
 																			<div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#6f9f6b' }}>
@@ -880,10 +886,9 @@ export default function SettingsPage() {
 																{/* Additional Benefits Section */}
 																<div className="space-y-3 pt-4 border-t border-[rgba(55,50,47,0.12)]">
 																	{[
-																		"Early Access",
-																		"Priority support",
-																		"Weekly feedback session (30–45 min)",
-																		"Ability to influence roadmap priorities",
+																		"Benefit 1",
+																		"Benefit 2",
+																		"Benefit 3",
 																	].map((benefit) => (
 																		<div key={benefit} className="flex items-center gap-3">
 																			<Gem className="h-4 w-4 shrink-0 text-[#6f9f6b]" />
@@ -1002,6 +1007,15 @@ export default function SettingsPage() {
 					{/* Upgrade Confirmation Dialog */}
 					<AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
 						<AlertDialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+							{/* Logo placeholder */}
+							<div className="flex justify-center mb-4">
+								<div
+									className="h-8 w-32 sm:h-9 sm:w-36 bg-[rgba(55,50,47,0.08)] rounded border border-[rgba(55,50,47,0.12)] flex items-center justify-center"
+									aria-hidden
+								>
+									<span className="text-[10px] text-[#6b7280] text-center">144×36</span>
+								</div>
+							</div>
 							<AlertDialogHeader>
 								<AlertDialogTitle>Upgrade to Annual Plan</AlertDialogTitle>
 								<AlertDialogDescription>

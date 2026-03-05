@@ -3,8 +3,6 @@ import express from "express";
 import cors from "cors";
 import { supabase } from "./lib/supabase.js";
 import authRoutes from "./routes/auth.js";
-import reportRoutes from "./routes/reports.js";
-import assemblageReportRoutes from "./routes/assemblage-reports.js";
 import billingRoutes from "./routes/billing.js";
 import emailRoutes from "./routes/email.js";
 
@@ -30,8 +28,6 @@ app.use((req, res, next) => {
 
 // API routes
 app.use("/api/auth", authRoutes);
-app.use("/api/reports", reportRoutes);
-app.use("/api/assemblage-reports", assemblageReportRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/email", emailRoutes);
 
