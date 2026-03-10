@@ -137,17 +137,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 												color: "#92400E",
 											}}
 										>
-											2:00
-										</span>
-										<span
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 500,
-												fontSize: "9px",
-												color: "#92400E",
-											}}
-										>
-											PM
+											0:01
 										</span>
 										<div
 											style={{
@@ -186,7 +176,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 											color: "#92400E",
 										}}
 									>
-										Meeting 1
+										Zillow data stored
 									</div>
 								</div>
 							</div>
@@ -227,17 +217,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 												color: "#0C4A6E",
 											}}
 										>
-											2:00
-										</span>
-										<span
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 500,
-												fontSize: "9px",
-												color: "#0C4A6E",
-											}}
-										>
-											PM
+											0:02
 										</span>
 										<div
 											style={{
@@ -276,7 +256,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 											color: "#0C4A6E",
 										}}
 									>
-										Meeting 2
+										Interior analysis done
 									</div>
 								</div>
 							</div>
@@ -317,17 +297,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 												color: "#064E3B",
 											}}
 										>
-											9:00
-										</span>
-										<span
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 500,
-												fontSize: "9px",
-												color: "#064E3B",
-											}}
-										>
-											AM
+											0:03
 										</span>
 									</div>
 									<div
@@ -338,7 +308,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 											color: "#064E3B",
 										}}
 									>
-										Meeting 3
+										Ready to review
 									</div>
 								</div>
 							</div>
@@ -406,17 +376,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 												color: "#581C87",
 											}}
 										>
-											11:00
-										</span>
-										<span
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 500,
-												fontSize: "9px",
-												color: "#581C87",
-											}}
-										>
-											AM
+											0:04
 										</span>
 										<div
 											style={{
@@ -455,7 +415,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 											color: "#581C87",
 										}}
 									>
-										Intro meeting
+										CAD report ready
 									</div>
 								</div>
 							</div>
@@ -496,17 +456,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 												color: "#BE123C",
 											}}
 										>
-											4:00
-										</span>
-										<span
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 500,
-												fontSize: "9px",
-												color: "#BE123C",
-											}}
-										>
-											PM
+											0:05
 										</span>
 										<div
 											style={{
@@ -545,7 +495,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 											color: "#BE123C",
 										}}
 									>
-										Sign document
+										Maps analysis done
 									</div>
 								</div>
 							</div>
@@ -586,17 +536,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 												color: "#581C87",
 											}}
 										>
-											5:30
-										</span>
-										<span
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 500,
-												fontSize: "9px",
-												color: "#581C87",
-											}}
-										>
-											PM
+											0:06
 										</span>
 									</div>
 									<div
@@ -607,7 +547,7 @@ const SmartSimpleBrilliant: React.FC<SmartSimpleBrilliantProps> = ({
 											color: "#581C87",
 										}}
 									>
-										Follow-up meeting
+										Alta form updated
 									</div>
 								</div>
 							</div>

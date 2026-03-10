@@ -6,15 +6,14 @@ export function Header() {
 			<div className="max-w-[1060px] mx-auto px-4">
 				<nav className="flex items-center justify-between py-4">
 					<div className="flex items-center space-x-8">
-						<div className="text-[#37322f] font-semibold text-lg">
-							Company Name
-						</div>
+						<img
+							src="/logos/Lumina-logo-transparent.svg"
+							alt="Lumina"
+							className="h-6 w-auto object-contain"
+						/>
 						<div className="hidden md:flex items-center space-x-6">
 							<button className="text-[#37322f] hover:text-[#37322f]/80 text-sm font-medium">
 								Products
-							</button>
-							<button className="text-[#37322f] hover:text-[#37322f]/80 text-sm font-medium">
-								Pricing
 							</button>
 							<button className="text-[#37322f] hover:text-[#37322f]/80 text-sm font-medium">
 								Docs
@@ -25,7 +24,7 @@ export function Header() {
 						variant="ghost"
 						className="text-[#37322f] hover:bg-[#37322f]/5"
 					>
-						Log ins
+						Log in
 					</Button>
 				</nav>
 			</div>

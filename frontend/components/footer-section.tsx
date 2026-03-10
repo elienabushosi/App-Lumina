@@ -6,12 +6,14 @@ export default function FooterSection() {
 				<div className="h-auto p-4 md:p-8 flex flex-col justify-start items-start gap-8">
 					{/* Brand Section */}
 					<div className="self-stretch flex justify-start items-center gap-3">
-						<div className="text-center text-[#49423D] text-xl font-semibold leading-4 font-sans">
-							Company Name
-						</div>
+						<img
+							src="/logos/Lumina-logo-transparent.svg"
+							alt="Lumina"
+							className="h-6 w-auto object-contain"
+						/>
 					</div>
 					<div className="text-[rgba(73,66,61,0.90)] text-sm font-medium leading-[18px] font-sans">
-						Tagline or short description for your product.
+						Automate insurance data entry with AI browser agents. Work 10x faster.
 					</div>
 
 					{/* Social Media Icons */}

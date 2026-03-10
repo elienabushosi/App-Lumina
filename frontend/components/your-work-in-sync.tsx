@@ -101,54 +101,67 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 							gap: "10px",
 							alignItems: "flex-start",
 							width: "356px",
-							height: "36px",
+							flexDirection: "column",
 						}}
 					>
-						{/* Avatar */}
-						<div
-							style={{
-								width: "36px",
-								height: "36px",
-								borderRadius: "44px",
-								backgroundImage: `url('${imgFrame2147223205}')`,
-								backgroundSize: "cover",
-								backgroundPosition: "center",
-								border: "1px solid var(--yws-border)",
-								flexShrink: 0,
-							}}
-						/>
-						{/* Message bubble */}
-						<div
-							style={{
-								background:
-									theme === "light"
-										? "#e8e5e3"
-										: "var(--yws-bubble-light)",
-								borderRadius: "999px",
-								padding: "0px 12px",
-								height: "36px",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-							}}
-						>
-							<span
+						<div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+							{/* Avatar */}
+							<div
 								style={{
-									fontFamily: "Inter, sans-serif",
-									fontWeight: 500,
-									fontSize: "13px",
-									lineHeight: "16px",
-									letterSpacing: "-0.4px",
-									color:
+									width: "36px",
+									height: "36px",
+									borderRadius: "44px",
+									backgroundImage: `url('${imgFrame2147223205}')`,
+									backgroundSize: "cover",
+									backgroundPosition: "center",
+									border: "1px solid var(--yws-border)",
+									flexShrink: 0,
+								}}
+							/>
+							{/* Message bubble */}
+							<div
+								style={{
+									background:
 										theme === "light"
-											? "#37322f"
-											: "var(--yws-text-primary)",
-									whiteSpace: "nowrap",
+											? "#e8e5e3"
+											: "var(--yws-bubble-light)",
+									borderRadius: "999px",
+									padding: "0px 12px",
+									height: "36px",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
 								}}
 							>
-								Generic question placeholder
-							</span>
+								<span
+									style={{
+										fontFamily: "Inter, sans-serif",
+										fontWeight: 500,
+										fontSize: "13px",
+										lineHeight: "16px",
+										letterSpacing: "-0.4px",
+										color:
+											theme === "light"
+												? "#37322f"
+												: "var(--yws-text-primary)",
+										whiteSpace: "nowrap",
+									}}
+								>
+									How quick can you get the client a proposal?
+								</span>
+							</div>
 						</div>
+						<span
+							style={{
+								fontFamily: "Inter, sans-serif",
+								fontSize: "10px",
+								color: theme === "light" ? "#6b7280" : "#9ca3af",
+								marginLeft: "46px",
+								marginTop: "2px",
+							}}
+						>
+							2:34 PM
+						</span>
 					</div>
 
 					{/* Message 2: Right side with avatar */}
@@ -156,55 +169,66 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 						style={{
 							position: "absolute",
 							right: "0px",
-							top: "60px",
+							top: "54px",
 							display: "flex",
-							gap: "10px",
-							alignItems: "flex-start",
-							justifyContent: "flex-end",
+							flexDirection: "column",
+							alignItems: "flex-end",
 						}}
 					>
-						{/* Message bubble */}
-						<div
-							style={{
-								background:
-									theme === "light"
-										? "#37322f"
-										: "var(--yws-bubble-dark)",
-								borderRadius: "999px",
-								padding: "0px 12px",
-								height: "36px",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-							}}
-						>
-							<span
+						<div style={{ display: "flex", gap: "10px", alignItems: "flex-start", justifyContent: "flex-end" }}>
+							{/* Message bubble */}
+							<div
 								style={{
-									fontFamily: "Inter, sans-serif",
-									fontWeight: 500,
-									fontSize: "13px",
-									lineHeight: "16px",
-									letterSpacing: "-0.4px",
-									color: "#ffffff",
-									whiteSpace: "nowrap",
+									background:
+										theme === "light"
+											? "#37322f"
+											: "var(--yws-bubble-dark)",
+									borderRadius: "999px",
+									padding: "0px 12px",
+									height: "36px",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
 								}}
 							>
-								Generic answer placeholder
-							</span>
+								<span
+									style={{
+										fontFamily: "Inter, sans-serif",
+										fontWeight: 500,
+										fontSize: "13px",
+										lineHeight: "16px",
+										letterSpacing: "-0.4px",
+										color: "#ffffff",
+										whiteSpace: "nowrap",
+									}}
+								>
+									Just a few minutes.
+								</span>
+							</div>
+							{/* Avatar */}
+							<div
+								style={{
+									width: "36px",
+									height: "36px",
+									borderRadius: "44px",
+									backgroundImage: `url('${imgFrame2147223206}')`,
+									backgroundSize: "cover",
+									backgroundPosition: "center",
+									border: "1px solid var(--yws-border)",
+									flexShrink: 0,
+								}}
+							/>
 						</div>
-						{/* Avatar */}
-						<div
+						<span
 							style={{
-								width: "36px",
-								height: "36px",
-								borderRadius: "44px",
-								backgroundImage: `url('${imgFrame2147223206}')`,
-								backgroundSize: "cover",
-								backgroundPosition: "center",
-								border: "1px solid var(--yws-border)",
-								flexShrink: 0,
+								fontFamily: "Inter, sans-serif",
+								fontSize: "10px",
+								color: theme === "light" ? "#6b7280" : "#9ca3af",
+								marginTop: "2px",
 							}}
-						/>
+						>
+							2:34 PM
+						</span>
 					</div>
 
 					{/* Message 3: Left side with avatar */}
@@ -212,59 +236,71 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 						style={{
 							position: "absolute",
 							left: "0px",
-							top: "120px",
+							top: "108px",
 							display: "flex",
-							gap: "10px",
+							flexDirection: "column",
 							alignItems: "flex-start",
 							width: "210px",
-							height: "36px",
 						}}
 					>
-						{/* Avatar */}
-						<div
-							style={{
-								width: "36px",
-								height: "36px",
-								borderRadius: "44px",
-								backgroundImage: `url('${imgFrame2147223207}')`,
-								backgroundSize: "cover",
-								backgroundPosition: "center",
-								border: "1px solid var(--yws-border)",
-								flexShrink: 0,
-							}}
-						/>
-						{/* Message bubble */}
-						<div
-							style={{
-								background:
-									theme === "light"
-										? "#e8e5e3"
-										: "var(--yws-bubble-light)",
-								borderRadius: "999px",
-								padding: "0px 12px",
-								height: "36px",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-							}}
-						>
-							<span
+						<div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+							{/* Avatar */}
+							<div
 								style={{
-									fontFamily: "Inter, sans-serif",
-									fontWeight: 500,
-									fontSize: "13px",
-									lineHeight: "16px",
-									letterSpacing: "-0.4px",
-									color:
+									width: "36px",
+									height: "36px",
+									borderRadius: "44px",
+									backgroundImage: `url('${imgFrame2147223207}')`,
+									backgroundSize: "cover",
+									backgroundPosition: "center",
+									border: "1px solid var(--yws-border)",
+									flexShrink: 0,
+								}}
+							/>
+							{/* Message bubble */}
+							<div
+								style={{
+									background:
 										theme === "light"
-											? "#37322f"
-											: "var(--yws-text-primary)",
-									whiteSpace: "nowrap",
+											? "#e8e5e3"
+											: "var(--yws-bubble-light)",
+									borderRadius: "999px",
+									padding: "0px 12px",
+									height: "36px",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
 								}}
 							>
-								Next step placeholder
-							</span>
+								<span
+									style={{
+										fontFamily: "Inter, sans-serif",
+										fontWeight: 500,
+										fontSize: "13px",
+										lineHeight: "16px",
+										letterSpacing: "-0.4px",
+										color:
+											theme === "light"
+												? "#37322f"
+												: "var(--yws-text-primary)",
+										whiteSpace: "nowrap",
+									}}
+								>
+									Wow that was fast.
+								</span>
+							</div>
 						</div>
+						<span
+							style={{
+								fontFamily: "Inter, sans-serif",
+								fontSize: "10px",
+								color: theme === "light" ? "#6b7280" : "#9ca3af",
+								marginLeft: "46px",
+								marginTop: "2px",
+							}}
+						>
+							2:35 PM
+						</span>
 					</div>
 
 					{/* Message 4: Center with send button */}
@@ -272,42 +308,42 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 						style={{
 							position: "absolute",
 							left: "146px",
-							top: "180px",
+							top: "162px",
 							display: "flex",
-							gap: "10px",
+							flexDirection: "column",
 							alignItems: "center",
-							height: "36px",
 						}}
 					>
-						{/* Message bubble */}
-						<div
-							style={{
-								background: "#ffffff",
-								borderRadius: "16px",
-								padding: "0px 12px",
-								height: "36px",
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								boxShadow:
-									"0px 0px 0px 1px rgba(0,0,0,0.08), 0px 1px 2px -0.4px rgba(0,0,0,0.08)",
-								overflow: "hidden",
-							}}
-						>
-							<span
+						<div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+							{/* Message bubble */}
+							<div
 								style={{
-									fontFamily: "Inter, sans-serif",
-									fontWeight: 400,
-									fontSize: "14px",
-									lineHeight: "20px",
-									color: "#030712",
-									whiteSpace: "nowrap",
+									background: "#ffffff",
+									borderRadius: "16px",
+									padding: "0px 12px",
+									height: "36px",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									boxShadow:
+										"0px 0px 0px 1px rgba(0,0,0,0.08), 0px 1px 2px -0.4px rgba(0,0,0,0.08)",
+									overflow: "hidden",
 								}}
 							>
-								Shared document placeholder
-							</span>
-						</div>
-						{/* Send button */}
+								<span
+									style={{
+										fontFamily: "Inter, sans-serif",
+										fontWeight: 400,
+										fontSize: "14px",
+										lineHeight: "20px",
+										color: "#030712",
+										whiteSpace: "nowrap",
+									}}
+								>
+									Research summary
+								</span>
+							</div>
+							{/* Send button */}
 						<div
 							style={{
 								width: "36px",
@@ -335,6 +371,17 @@ const YourWorkInSync: React.FC<YourWorkInSyncProps> = ({
 								}}
 							/>
 						</div>
+						</div>
+						<span
+							style={{
+								fontFamily: "Inter, sans-serif",
+								fontSize: "10px",
+								color: theme === "light" ? "#6b7280" : "#9ca3af",
+								marginTop: "2px",
+							}}
+						>
+							2:35 PM
+						</span>
 					</div>
 				</div>
 			</div>

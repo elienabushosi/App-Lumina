@@ -11,8 +11,6 @@ import EffortlessIntegration from "../components/effortless-integration-updated"
 import NumbersThatSpeak from "../components/numbers-that-speak";
 import DocumentationSection from "../components/documentation-section";
 import TestimonialsSection from "../components/testimonials-section";
-import FAQSection from "../components/faq-section";
-import PricingSection from "../components/pricing-section";
 import CTASection from "../components/cta-section";
 import FooterSection from "../components/footer-section";
 
@@ -29,6 +27,37 @@ function Badge({ icon, text }: { icon: React.ReactNode; text: string }) {
 		</div>
 	);
 }
+
+const VALUE_PROP_CARDS = [
+	{
+		title: "CAD property report",
+		description:
+			"Data fetching from CAD to pull property data—type, year built, sq ft, tax history, and improvement details.",
+		image: "/v1cadsreenshot.png",
+		imageAlt: "CAD property report",
+	},
+	{
+		title: "Google Maps analysis",
+		description:
+			"Vision models analyze street and aerial imagery to infer physical property elements—roofing type and style, exterior materials, foundation.",
+		image: "/v2ooglemapsscreenshot.png",
+		imageAlt: "Google Maps property analysis",
+	},
+	{
+		title: "Zillow & Redfin interior",
+		description:
+			"AI analyzes listing photos to infer interior elements—finishes, flooring, bathroom count, and quality.",
+		image: "/v4zillowredfinescreenhot.png",
+		imageAlt: "Zillow & Redfin interior analysis",
+	},
+	{
+		title: "Automated form filling",
+		description:
+			"Research flows into Alta—est. replacement cost and primary home characteristics updated automatically.",
+		image: "/v1browserrunscreen.png",
+		imageAlt: "Automated form filling in Alta",
+	},
+];
 
 export default function LandingPage() {
 	const router = useRouter();
@@ -56,7 +85,7 @@ export default function LandingPage() {
 				if (newProgress >= 100) {
 					// Use ref to get current value and ensure correct rotation order
 					const current = activeCardRef.current;
-					const next = (current + 1) % 3;
+					const next = (current + 1) % VALUE_PROP_CARDS.length;
 					setActiveCard(next);
 					return 0;
 				}
@@ -143,12 +172,6 @@ export default function LandingPage() {
 										>
 											Solutions
 										</button>
-										<a
-											href="#pricing"
-											className="flex flex-col justify-center text-[rgba(49,45,43,0.80)] text-xs md:text-[13px] font-medium leading-[14px] font-sans hover:text-[#37322F] transition-colors"
-										>
-											Pricing
-										</a>
 									</div>
 								</div>
 								<div className="h-6 sm:h-7 md:h-8 flex justify-start items-start gap-2 sm:gap-3">
@@ -177,10 +200,10 @@ export default function LandingPage() {
 							<div className="w-full max-w-[937px] lg:w-[937px] flex flex-col justify-center items-center gap-3 sm:gap-4 md:gap-5 lg:gap-6">
 								<div className="self-stretch rounded-[3px] flex flex-col justify-center items-center gap-4 sm:gap-5 md:gap-6 lg:gap-8">
 									<div className="w-full max-w-[748.71px] lg:w-[748.71px] text-center flex justify-center flex-col text-[#37322F] text-[24px] xs:text-[28px] sm:text-[36px] md:text-[52px] lg:text-[80px] font-normal leading-[1.1] sm:leading-[1.15] md:leading-[1.2] lg:leading-24 font-serif px-2 sm:px-4 md:px-0">
-										Accomplish anything with Company Name
+										Automate Insurance Data Entry with AI Browser Agents
 									</div>
 									<div className="w-full max-w-[506.08px] lg:w-[506.08px] text-center flex justify-center flex-col text-[rgba(55,50,47,0.80)] sm:text-lg md:text-xl leading-[1.4] sm:leading-[1.45] md:leading-[1.5] lg:leading-7 font-sans px-2 sm:px-4 md:px-0 lg:text-lg font-medium text-sm">
-										A short supporting sentence for your product.
+										Work 10x faster.
 									</div>
 								</div>
 							</div>
@@ -196,25 +219,27 @@ export default function LandingPage() {
 										</div>
 									</button>
 								</div>
-								<div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
+								<div className="w-full flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-center">
+									{/* Address input hidden for now
 									<div className="w-full sm:flex-[3] flex flex-col gap-1">
 										<AddressAutocomplete
 											onAddressSelect={
 												handleAddressSelect
 											}
-											placeholder="Boiler Plate Placeholder"
+											placeholder="Add an address to try it"
 											className="w-full h-10 sm:h-11 md:h-12 px-4 sm:px-6 text-sm sm:text-base border border-[rgba(55,50,47,0.12)] rounded-md bg-white focus-visible:ring-2 focus-visible:ring-[#D09376] focus-visible:border-[#D09376]"
 										/>
 									</div>
+									*/}
 									<button
 										onClick={() =>
-											router.push("/information-gather")
+											router.push("/research-agent")
 										}
 										className="w-full sm:w-auto sm:flex-shrink-0 h-10 sm:h-11 md:h-12 px-6 sm:px-8 md:px-10 lg:px-12 py-2 sm:py-[6px] relative bg-[#6C70BA] shadow-[0px_0px_0px_2.5px_rgba(255,255,255,0.08)_inset] overflow-hidden rounded-md flex justify-center items-center hover:bg-[#6C70BA]/90 transition-colors cursor-pointer"
 									>
 										<div className="w-20 sm:w-24 md:w-28 lg:w-44 h-[41px] absolute left-0 top-[-0.5px] bg-gradient-to-b from-[rgba(255,255,255,0)] to-[rgba(0,0,0,0.05)] mix-blend-multiply"></div>
 										<div className="flex flex-col justify-center text-white text-sm sm:text-base md:text-[15px] font-medium leading-5 font-sans">
-											Try For Free
+											Try Demo
 										</div>
 									</button>
 								</div>
@@ -236,50 +261,22 @@ export default function LandingPage() {
 										{/* Main Content */}
 										<div className="w-full h-full flex items-center justify-center">
 											<div className="relative w-full h-full overflow-hidden">
-												{/* Product Image 1 */}
-												<div
-													className={`absolute inset-0 transition-all duration-500 ease-in-out ${
-														activeCard === 0
-															? "opacity-100 scale-100 blur-0"
-															: "opacity-0 scale-95 blur-sm"
-													}`}
-												>
-													<img
-														src="/Addressresearchtop.png"
-														alt="Product screenshot 1"
-														className="w-full h-full object-cover scale-[1.01]"
-													/>
-												</div>
-
-												{/* Product Image 2 */}
-												<div
-													className={`absolute inset-0 transition-all duration-500 ease-in-out ${
-														activeCard === 1
-															? "opacity-100 scale-100 blur-0"
-															: "opacity-0 scale-95 blur-sm"
-													}`}
-												>
-													<img
-														src="/Datainsightstop.png"
-														alt="Product screenshot 2"
-														className="w-full h-full object-cover"
-													/>
-												</div>
-
-												{/* Product Image 3 */}
-												<div
-													className={`absolute inset-0 transition-all duration-500 ease-in-out ${
-														activeCard === 2
-															? "opacity-100 scale-100 blur-0"
-															: "opacity-0 scale-95 blur-sm"
-													}`}
-												>
-													<img
-														src="/Automatedreports.png"
-														alt="Product screenshot 3"
-														className="w-full h-full object-cover"
-													/>
-												</div>
+												{VALUE_PROP_CARDS.map((card, index) => (
+													<div
+														key={card.image}
+														className={`absolute inset-0 transition-all duration-500 ease-in-out ${
+															activeCard === index
+																? "opacity-100 scale-100 blur-0"
+																: "opacity-0 scale-95 blur-sm"
+														}`}
+													>
+														<img
+															src={card.image}
+															alt={card.imageAlt}
+															className={`w-full h-full object-cover ${index === 0 ? "scale-[1.01]" : ""}`}
+														/>
+													</div>
+												))}
 											</div>
 										</div>
 									</div>
@@ -301,34 +298,16 @@ export default function LandingPage() {
 								</div>
 
 								<div className="flex-1 px-0 sm:px-2 md:px-0 flex flex-col md:flex-row justify-center items-stretch gap-0">
-									{/* Feature Cards */}
-									<FeatureCard
-										title="Value Proposition 1"
-										description="VP Description 1. Replace with your benefit copy."
-										isActive={activeCard === 0}
-										progress={
-											activeCard === 0 ? progress : 0
-										}
-										onClick={() => handleCardClick(0)}
-									/>
-									<FeatureCard
-										title="Value Proposition 2"
-										description="VP Description 2. Replace with your benefit copy."
-										isActive={activeCard === 1}
-										progress={
-											activeCard === 1 ? progress : 0
-										}
-										onClick={() => handleCardClick(1)}
-									/>
-									<FeatureCard
-										title="Value Proposition 3"
-										description="VP Description 3. Replace with your benefit copy."
-										isActive={activeCard === 2}
-										progress={
-											activeCard === 2 ? progress : 0
-										}
-										onClick={() => handleCardClick(2)}
-									/>
+									{VALUE_PROP_CARDS.map((card, index) => (
+										<FeatureCard
+											key={card.title}
+											title={card.title}
+											description={card.description}
+											isActive={activeCard === index}
+											progress={activeCard === index ? progress : 0}
+											onClick={() => handleCardClick(index)}
+										/>
+									))}
 								</div>
 
 								<div className="w-4 sm:w-6 md:w-8 lg:w-12 self-stretch relative overflow-hidden">
@@ -368,10 +347,10 @@ export default function LandingPage() {
 										<div className="border-b border-r-0 md:border-r border-[rgba(55,50,47,0.12)] p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-start items-start gap-4 sm:gap-6">
 											<div className="flex flex-col gap-2">
 												<h3 className="text-[#685954] text-lg sm:text-xl font-semibold leading-tight font-sans">
-													Value Proposition 1
+													Fetch data from CAD sources
 												</h3>
 												<p className="text-[#605A57] text-sm md:text-base font-normal leading-relaxed font-sans">
-													VP Description 1. Replace with your value proposition.
+													We pull property data from county assessor and CAD sources—type, year built, sq ft, tax history, and improvement details so you start with authoritative records.
 												</p>
 											</div>
 											<div className="w-full h-[200px] sm:h-[250px] md:h-[300px] rounded-lg flex items-center justify-center overflow-hidden">
@@ -388,10 +367,10 @@ export default function LandingPage() {
 										<div className="border-b border-[rgba(55,50,47,0.12)] p-4 sm:p-6 md:p-8 lg:p-12 flex flex-col justify-start items-start gap-4 sm:gap-6">
 											<div className="flex flex-col gap-2">
 												<h3 className="text-[#685954] font-semibold leading-tight font-sans text-lg sm:text-xl">
-													Value Proposition 2
+													AI vision interprets property elements
 												</h3>
 												<p className="text-[#605A57] text-sm md:text-base font-normal leading-relaxed font-sans">
-													VP Description 2. Replace with your benefit copy.
+													Vision models analyze street view, aerial imagery, and listing photos to infer roofing type and style, exterior materials, foundation, interior finishes, and quality—so your data reflects what’s actually there.
 												</p>
 											</div>
 											<div className="w-full h-[200px] sm:h-[250px] md:h-[300px] rounded-lg flex overflow-hidden text-right items-center justify-center">
@@ -483,10 +462,6 @@ export default function LandingPage() {
 							<DocumentationSection />
 							{/* Testimonials Section */}
 							{/* <TestimonialsSection /> */}
-							{/* Pricing Section */}
-							<PricingSection />
-							{/* FAQ Section */}
-							<FAQSection />
 							{/* CTA Section */}
 							{/* <CTASection /> */}
 							{/* Footer Section */}

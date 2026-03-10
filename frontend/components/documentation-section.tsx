@@ -23,19 +23,24 @@ export default function DocumentationSection() {
 
 	const cards = [
 		{
-			title: "Value Proposition 1",
-			description: "VP Description 1. Replace with your benefit copy.",
-			image: "/addressresearchlower2.png",
+			title: "CAD property report",
+			description: "Structured property data from county assessors—type, year built, sq ft, tax history, and improvement details in one place.",
+			image: "/v1cadsreenshot.png",
 		},
 		{
-			title: "Value Proposition 2",
-			description: "VP Description 2. Replace with your benefit copy.",
-			image: "/feasabilityreportimage2.png",
+			title: "Google Maps analysis",
+			description: "Ground and bird's-eye views with extracted attributes: stories, foundation, exterior materials, roof type, and site features.",
+			image: "/v2ooglemapsscreenshot.png",
 		},
 		{
-			title: "Value Proposition 3",
-			description: "VP Description 3. Replace with your benefit copy.",
-			image: "/Reliableandaccuratelower.png",
+			title: "Zillow & Redfin interior analysis",
+			description: "Listing photos analyzed for bathroom count, flooring types, finish level, and interior quality—all stored and reviewable.",
+			image: "/v4zillowredfinescreenhot.png",
+		},
+		{
+			title: "Alta form filling",
+			description: "Est. replacement cost and primary home characteristics updated automatically—review and save progress when ready.",
+			image: "/v1browserrunscreen.png",
 		},
 	];
 
@@ -55,24 +60,6 @@ export default function DocumentationSection() {
 
 	return (
 		<div className="w-full border-b border-[rgba(55,50,47,0.12)] flex flex-col justify-center items-center">
-			{/* Header Section */}
-			<div className="self-stretch px-6 md:px-24 py-12 md:py-16 border-b border-[rgba(55,50,47,0.12)] flex justify-center items-center gap-6">
-				<div className="w-full max-w-[586px] px-6 py-5 shadow-[0px_2px_4px_rgba(50,45,43,0.06)] overflow-hidden rounded-lg flex flex-col justify-start items-center gap-4 shadow-none">
-					<Badge
-						icon={
-							<div className="w-[10.50px] h-[10.50px] outline outline-[1.17px] outline-[#37322F] outline-offset-[-0.58px] rounded-full"></div>
-						}
-						text="Platform Features"
-					/>
-					<div className="self-stretch text-center flex justify-center flex-col text-[#49423D] text-3xl md:text-5xl font-semibold leading-tight md:leading-[60px] font-sans tracking-tight">
-						Platform features headline
-					</div>
-					<div className="self-stretch text-center text-[#605A57] text-base font-normal leading-7 font-sans">
-						VP Description 1. Replace with your value proposition copy.
-					</div>
-				</div>
-			</div>
-
 			{/* Content Section */}
 			<div className="self-stretch px-4 md:px-9 overflow-hidden flex justify-start items-center">
 				<div className="flex-1 py-8 md:py-11 flex flex-col md:flex-row justify-start items-center gap-6 md:gap-12">
