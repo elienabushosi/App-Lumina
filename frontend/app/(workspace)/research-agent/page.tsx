@@ -247,24 +247,24 @@ export default function ResearchAgentPage() {
 				{/* Step 3: Data pulled (show dummy data) + Google Maps question */}
 				{step === STEPS.DATA_PULLED && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 space-y-4">
-						<div className="flex items-center justify-between gap-4">
-							<div className="flex items-center gap-2">
+						<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+							<div className="flex items-center gap-2 min-w-0">
 								<img
 									src="/collin-cad%20simple%20logo.png"
 									alt="Collin County CAD"
-									className="h-6 w-auto object-contain"
+									className="h-6 w-auto shrink-0 object-contain"
 								/>
 								<p className="text-sm font-medium text-[#37322F]">
 									Collin County CAD Property Report
 								</p>
 							</div>
-							<p className="text-xs text-[#605A57] shrink-0">
+							<p className="text-xs text-[#605A57] min-w-0 break-words">
 								Source:{" "}
 								<a
 									href={COLLIN_CAD_SOURCE_URL}
 									target="_blank"
 									rel="noreferrer"
-									className="text-[#6C70BA] underline hover:no-underline"
+									className="text-[#6C70BA] underline hover:no-underline break-words"
 								>
 									Collin CAD Property Search (Property ID 2516503)
 								</a>
@@ -600,8 +600,8 @@ export default function ResearchAgentPage() {
 						) : (
 							<>
 						<div className="space-y-2">
-							<div className="flex items-center justify-between gap-4">
-								<div className="flex items-center gap-3">
+							<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+								<div className="flex items-center gap-3 shrink-0">
 									<img
 										src="/logos/Zillow-Logo.png"
 										alt="Zillow"
@@ -613,9 +613,9 @@ export default function ResearchAgentPage() {
 										className="h-6 w-auto object-contain"
 									/>
 								</div>
-								<div className="text-xs text-[#605A57] text-right">
+								<p className="text-xs text-[#605A57] sm:text-right min-w-0">
 									Using listing photos from Zillow &amp; Redfin to understand interior finishes and quality.
-								</div>
+								</p>
 							</div>
 							<div className="flex items-center gap-1 text-xs text-[#605A57]">
 								<span
