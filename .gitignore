@@ -19,6 +19,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# RingCentral OAuth tokens (file-based until DB)
+backend/.ringcentral-tokens.json
+
 # env files
 .env*
 .env.local

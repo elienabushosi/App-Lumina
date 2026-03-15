@@ -9,6 +9,7 @@
     "prod": "NODE_ENV=production node server.js"
   },
   "dependencies": {
+    "@ringcentral/sdk": "^5.0.6",
     "@supabase/supabase-js": "^2.89.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

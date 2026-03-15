@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lock, CreditCard, Mail, CheckCircle2, Loader2, X, Check, Gem } from "lucide-react";
+import { Lock, CreditCard, Mail, CheckCircle2, Loader2, X, Check, Gem, Phone } from "lucide-react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -98,6 +98,7 @@ export default function SettingsPage() {
 		currency: string;
 		formatted: string;
 	} | null>(null);
+	const [ringCentralConnected, setRingCentralConnected] = useState<boolean | null>(null);
 
 	const isOwner = currentUser?.user.Role === "Owner";
 
@@ -109,6 +110,32 @@ export default function SettingsPage() {
 			confirmPassword: "",
 		},
 	});
+
+	useEffect(() => {
+		const ringcentral = searchParams.get("ringcentral");
+		if (ringcentral === "connected") {
+			setSuccess("RingCentral connected successfully.");
+			setRingCentralConnected(true);
+			window.history.replaceState({}, "", "/settings");
+		} else if (ringcentral === "error") {
+			const msg = searchParams.get("message") || "Connection failed.";
+			setError(`RingCentral: ${msg}`);
+			window.history.replaceState({}, "", "/settings");
+		}
+	}, [searchParams]);
+
+	useEffect(() => {
+		const fetchRingCentralStatus = async () => {
+			try {
+				const res = await fetch(`${config.apiUrl}/api/ringcentral/status`);
+				const data = await res.json();
+				setRingCentralConnected(data.connected ?? false);
+			} catch {
+				setRingCentralConnected(false);
+			}
+		};
+		fetchRingCentralStatus();
+	}, []);
 
 	useEffect(() => {
 		const fetchUser = async () => {
@@ -556,6 +583,41 @@ export default function SettingsPage() {
 										</div>
 									</form>
 								</Form>
+							)}
+						</CardContent>
+					</Card>
+
+					{/* RingCentral */}
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Phone className="h-5 w-5" />
+								RingCentral
+							</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<p className="text-sm text-[#605A57]">
+								Connect your RingCentral account so Lumina can process calls and create leads.
+							</p>
+							{ringCentralConnected === null ? (
+								<div className="flex items-center gap-2 text-sm text-[#605A57]">
+									<Loader2 className="h-4 w-4 animate-spin" />
+									Checking connection...
+								</div>
+							) : ringCentralConnected ? (
+								<div className="flex items-center gap-2 text-sm text-green-700">
+									<CheckCircle2 className="h-4 w-4" />
+									Connected
+								</div>
+							) : (
+								<Button
+									className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+									onClick={() => {
+										window.location.href = `${config.apiUrl}/api/ringcentral/auth`;
+									}}
+								>
+									Connect RingCentral
+								</Button>
 							)}
 						</CardContent>
 					</Card>

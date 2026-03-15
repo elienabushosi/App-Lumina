@@ -5,6 +5,8 @@ import { supabase } from "./lib/supabase.js";
 import authRoutes from "./routes/auth.js";
 import billingRoutes from "./routes/billing.js";
 import emailRoutes from "./routes/email.js";
+import ringcentralRoutes from "./routes/ringcentral.js";
+import { startCallLogPoller } from "./lib/ringcentral-call-log-poller.js";
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -30,6 +32,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/ringcentral", ringcentralRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -64,4 +67,5 @@ app.get("/api/test-supabase", async (req, res) => {
 app.listen(PORT, () => {
 	console.log(`Backend server running on http://localhost:${PORT}`);
 	console.log("Supabase client initialized");
+	startCallLogPoller();
 });
