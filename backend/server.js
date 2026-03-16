@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.js";
 import billingRoutes from "./routes/billing.js";
 import emailRoutes from "./routes/email.js";
 import ringcentralRoutes from "./routes/ringcentral.js";
+import callsRoutes from "./routes/calls.js";
 import { startCallLogPoller } from "./lib/ringcentral-call-log-poller.js";
 
 const app = express();
@@ -33,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/ringcentral", ringcentralRoutes);
+app.use("/api/calls", callsRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
