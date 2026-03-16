@@ -4,6 +4,59 @@ import { extractLeadFromTranscript } from "../lib/claude-extract-lead.js";
 
 const router = express.Router();
 
+// GET /api/calls
+// List recent call_recordings for debugging UI.
+router.get("/", async (req, res) => {
+	try {
+		const db = getSupabase();
+		const limit = Number.parseInt(req.query.limit, 10) || 50;
+
+		const { data, error } = await db
+			.from("call_recordings")
+			.select(
+				"id, id_organization, ringcentral_call_id, from_number, to_number, start_time, duration_sec, status, lead_status"
+			)
+			.order("start_time", { ascending: false, nullsFirst: false })
+			.limit(limit);
+
+		if (error) {
+			console.error("[Calls] list error:", error.message);
+			return res.status(500).json({ error: "Failed to list calls" });
+		}
+
+		return res.json({ items: data ?? [] });
+	} catch (err) {
+		console.error("[Calls] list error (exception):", err.message);
+		return res.status(500).json({ error: "Failed to list calls" });
+	}
+});
+
+// GET /api/calls/:id
+// Single call_recordings row with transcript and lead payload.
+router.get("/:id", async (req, res) => {
+	try {
+		const db = getSupabase();
+		const id = req.params.id;
+
+		const { data, error } = await db
+			.from("call_recordings")
+			.select(
+				"id, id_organization, ringcentral_call_id, from_number, to_number, start_time, duration_sec, status, lead_status, transcript, lead_payload"
+			)
+			.eq("id", id)
+			.single();
+
+		if (error || !data) {
+			return res.status(404).json({ error: "Call not found" });
+		}
+
+		return res.json(data);
+	} catch (err) {
+		console.error("[Calls] get error:", err.message);
+		return res.status(500).json({ error: "Failed to load call" });
+	}
+});
+
 // POST /api/calls/:id/extract-lead
 // Runs Claude extraction for a single call_recordings row.
 router.post("/:id/extract-lead", async (req, res) => {

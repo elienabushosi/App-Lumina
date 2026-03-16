@@ -37,6 +37,7 @@ import {
 	SquareDashed,
 	Box,
 	ScanSearch,
+	Phone,
 } from "lucide-react";
 
 function SidebarHeaderContent({
@@ -191,6 +192,18 @@ export default function WorkspaceLayout({
 					<SidebarGroup>
 						<SidebarGroupContent>
 							<SidebarMenu>
+								<SidebarMenuItem>
+									<SidebarMenuButton
+										tooltip="Call Listener"
+										isActive={pathname === "/calls"}
+										asChild
+									>
+										<Link href="/calls">
+											<Phone className="size-4" />
+											<span>Call Listener</span>
+										</Link>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
 								<SidebarMenuItem>
 									<SidebarMenuButton
 										tooltip="Research Agent - Demo"
