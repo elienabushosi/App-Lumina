@@ -1,13 +1,15 @@
 /**
- * Polls RingCentral call log every 30s (workaround when Call Control webhook isn't approved).
- * Logs ended calls and the data we can pull (id, from, to, duration, result, recording).
+ * Polls RingCentral call log every 30s. Logs ended calls; for calls with recordings,
+ * inserts into call_recordings and kicks off Deepgram transcription.
  */
 import { getRingCentralSDK } from "./ringcentral.js";
 import { getRingCentralTokens } from "./ringcentral-token-store.js";
+import { getSupabase } from "./supabase.js";
+import { processRecording } from "./recording-processor.js";
 
 const STATE_KEY = "default";
 const POLL_INTERVAL_MS = 30 * 1000;
-const DATE_FROM_HOURS = 24; // fetch calls from last 24h; we only log ones we haven't seen
+const DATE_FROM_HOURS = 24;
 
 const processedCallIds = new Set();
 
@@ -58,6 +60,23 @@ async function poll() {
 			page++;
 		} while (page <= totalPages);
 
+		const recordingCallIds = allRecords
+			.filter((r) => r.recording?.contentUri)
+			.map((r) => r.id);
+		let existingRecordingIds = new Set();
+		if (recordingCallIds.length > 0) {
+			try {
+				const db = getSupabase();
+				const { data: rows } = await db
+					.from("call_recordings")
+					.select("ringcentral_call_id")
+					.in("ringcentral_call_id", recordingCallIds);
+				if (rows?.length) existingRecordingIds = new Set(rows.map((r) => r.ringcentral_call_id));
+			} catch (e) {
+				console.error("[CallLog] DB check error:", e.message);
+			}
+		}
+
 		let newCount = 0;
 		for (const record of allRecords) {
 			const id = record.id;
@@ -73,13 +92,8 @@ async function poll() {
 			const type = record.type ?? "—";
 			const result = record.result ?? "—";
 			const direction = record.direction ?? "—";
-			const recording = record.recording
-				? {
-						id: record.recording.id,
-						contentUri: record.recording.contentUri ? "(present)" : null,
-						uri: record.recording.uri ? "(present)" : null,
-					}
-				: null;
+			const recordingContentUri = record.recording?.contentUri ?? null;
+			const hasRecording = !!recordingContentUri;
 
 			console.log("[CallLog] Ended call:", {
 				id,
@@ -90,9 +104,37 @@ async function poll() {
 				durationSec: duration,
 				type,
 				result,
-				recording: recording ? "yes" : "no",
-				recordingContentUri: record.recording?.contentUri ?? null,
+				recording: hasRecording ? "yes" : "no",
+				recordingContentUri,
 			});
+
+			if (hasRecording && !existingRecordingIds.has(id)) {
+				try {
+					const db = getSupabase();
+					const { data: inserted, error } = await db
+						.from("call_recordings")
+						.insert({
+							id_organization: STATE_KEY,
+							ringcentral_call_id: id,
+							recording_content_uri: recordingContentUri,
+							from_number: from !== "—" ? from : null,
+							to_number: to !== "—" ? to : null,
+							start_time: record.startTime || null,
+							duration_sec: duration || null,
+							status: "pending_transcription",
+						})
+						.select("id")
+						.single();
+					if (!error && inserted?.id) {
+						existingRecordingIds.add(id);
+						setImmediate(() => processRecording(inserted.id));
+					} else if (error?.code !== "23505") {
+						console.error("[CallLog] Insert call_recordings error:", error?.message);
+					}
+				} catch (e) {
+					console.error("[CallLog] Insert recording error:", e.message);
+				}
+			}
 		}
 		console.log("[CallLog] Poll run —", allRecords.length, "calls in log,", newCount, "new");
 	} catch (e) {
