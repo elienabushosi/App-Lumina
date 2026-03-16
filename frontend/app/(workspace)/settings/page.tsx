@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lock, CreditCard, Mail, CheckCircle2, Loader2, X, Check, Gem, Phone } from "lucide-react";
+import { Lock, CreditCard, Mail, CheckCircle2, Loader2, X, Check, Gem, Phone, Link2 } from "lucide-react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -99,6 +99,12 @@ export default function SettingsPage() {
 		formatted: string;
 	} | null>(null);
 	const [ringCentralConnected, setRingCentralConnected] = useState<boolean | null>(null);
+	const [agencyZoomConnected, setAgencyZoomConnected] = useState<boolean | null>(null);
+	const [agencyZoomEmail, setAgencyZoomEmail] = useState("");
+	const [agencyZoomPassword, setAgencyZoomPassword] = useState("");
+	const [isConnectingAgencyZoom, setIsConnectingAgencyZoom] = useState(false);
+	const [agencyZoomError, setAgencyZoomError] = useState<string | null>(null);
+	const [agencyZoomSuccess, setAgencyZoomSuccess] = useState<string | null>(null);
 
 	const isOwner = currentUser?.user.Role === "Owner";
 
@@ -134,7 +140,17 @@ export default function SettingsPage() {
 				setRingCentralConnected(false);
 			}
 		};
+		const fetchAgencyZoomStatus = async () => {
+			try {
+				const res = await fetch(`${config.apiUrl}/api/agencyzoom/status`);
+				const data = await res.json();
+				setAgencyZoomConnected(data.connected ?? false);
+			} catch {
+				setAgencyZoomConnected(false);
+			}
+		};
 		fetchRingCentralStatus();
+		fetchAgencyZoomStatus();
 	}, []);
 
 	useEffect(() => {
@@ -318,6 +334,41 @@ export default function SettingsPage() {
 			);
 		} finally {
 			setIsCanceling(false);
+		}
+	};
+
+	const handleConnectAgencyZoom = async () => {
+		setIsConnectingAgencyZoom(true);
+		setAgencyZoomError(null);
+		setAgencyZoomSuccess(null);
+
+		try {
+			const res = await fetch(`${config.apiUrl}/api/agencyzoom/connect`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					email: agencyZoomEmail,
+					password: agencyZoomPassword,
+				}),
+			});
+
+			const data = await res.json();
+
+			if (!res.ok || !data.success) {
+				throw new Error(data.error || "Failed to connect to AgencyZoom");
+			}
+
+			setAgencyZoomSuccess("AgencyZoom connected successfully.");
+			setAgencyZoomConnected(true);
+		} catch (err) {
+			setAgencyZoomError(
+				err instanceof Error ? err.message : "Failed to connect to AgencyZoom"
+			);
+			setAgencyZoomConnected(false);
+		} finally {
+			setIsConnectingAgencyZoom(false);
 		}
 	};
 
@@ -618,6 +669,83 @@ export default function SettingsPage() {
 								>
 									Connect RingCentral
 								</Button>
+							)}
+						</CardContent>
+					</Card>
+
+					{/* AgencyZoom */}
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Link2 className="h-5 w-5" />
+								AgencyZoom
+							</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<p className="text-sm text-[#605A57]">
+								Connect your AgencyZoom account so Lumina can sync leads and activity.
+							</p>
+							{agencyZoomConnected ? (
+								<div className="flex items-center gap-2 text-sm text-green-700">
+									<CheckCircle2 className="h-4 w-4" />
+									Connected
+								</div>
+							) : (
+								<>
+									{agencyZoomError && (
+										<div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+											{agencyZoomError}
+										</div>
+									)}
+									{agencyZoomSuccess && (
+										<div className="p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-700 text-sm">
+											<CheckCircle2 className="h-4 w-4" />
+											{agencyZoomSuccess}
+										</div>
+									)}
+									<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+										<div>
+											<label className="block text-sm font-medium text-[#37322F] mb-1">
+												AgencyZoom Email
+											</label>
+											<Input
+												type="email"
+												value={agencyZoomEmail}
+												onChange={(e) => setAgencyZoomEmail(e.target.value)}
+												placeholder="Enter your AgencyZoom login email"
+											/>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-[#37322F] mb-1">
+												AgencyZoom Password
+											</label>
+											<Input
+												type="password"
+												value={agencyZoomPassword}
+												onChange={(e) => setAgencyZoomPassword(e.target.value)}
+												placeholder="Enter your AgencyZoom password"
+											/>
+										</div>
+									</div>
+									<Button
+										onClick={handleConnectAgencyZoom}
+										disabled={
+											isConnectingAgencyZoom ||
+											!agencyZoomEmail ||
+											!agencyZoomPassword
+										}
+										className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+									>
+										{isConnectingAgencyZoom ? (
+											<>
+												<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+												Connecting...
+											</>
+										) : (
+											"Connect AgencyZoom"
+										)}
+									</Button>
+								</>
 							)}
 						</CardContent>
 					</Card>
