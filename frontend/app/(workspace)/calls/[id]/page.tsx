@@ -9,6 +9,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { CallActions } from "@/components/call-actions";
 
 type CallDetail = {
 	id: string;
@@ -55,12 +56,18 @@ export default async function CallDetailPage({
 							RingCentral call ID: {call.ringcentral_call_id}
 						</p>
 					</div>
-					<Link
-						href="/calls"
-						className="text-sm text-[#37322F] hover:underline"
-					>
-						← Back to Call Listener
-					</Link>
+					<div className="flex items-center gap-4">
+						<CallActions
+							callId={call.id}
+							initialLeadStatus={call.lead_status}
+						/>
+						<Link
+							href="/calls"
+							className="text-sm text-[#37322F] hover:underline"
+						>
+							← Back to Call Listener
+						</Link>
+					</div>
 				</div>
 
 				<div className="grid gap-4 md:grid-cols-2">

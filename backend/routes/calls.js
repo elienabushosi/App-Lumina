@@ -1,6 +1,7 @@
 import express from "express";
 import { getSupabase } from "../lib/supabase.js";
 import { extractLeadFromTranscript } from "../lib/claude-extract-lead.js";
+import { createAgencyZoomLeadForCall } from "../lib/agencyzoom-leads.js";
 
 const router = express.Router();
 
@@ -126,6 +127,46 @@ router.post("/:id/extract-lead", async (req, res) => {
 			// ignore secondary errors
 		}
 		return res.status(500).json({ error: "Lead extraction failed" });
+	}
+});
+
+// POST /api/calls/:id/push-agencyzoom
+// Uses existing lead_payload to create a lead in AgencyZoom.
+router.post("/:id/push-agencyzoom", async (req, res) => {
+	try {
+		const db = getSupabase();
+		const id = req.params.id;
+
+		const { data: recording, error } = await db
+			.from("call_recordings")
+			.select(
+				"id, id_organization, ringcentral_call_id, lead_status, lead_payload"
+			)
+			.eq("id", id)
+			.single();
+
+		if (error || !recording) {
+			return res.status(404).json({ error: "Recording not found" });
+		}
+
+		if (!recording.lead_payload || !recording.lead_payload.lead) {
+			return res.status(400).json({
+				error: "No lead payload found. Run extract-lead first.",
+				lead_status: recording.lead_status,
+			});
+		}
+
+		await createAgencyZoomLeadForCall(recording);
+
+		return res.json({
+			ok: true,
+			message: "Lead pushed to AgencyZoom",
+		});
+	} catch (err) {
+		console.error("[Calls] push-agencyzoom error:", err.message);
+		return res
+			.status(500)
+			.json({ error: "Failed to push lead to AgencyZoom" });
 	}
 });
 
