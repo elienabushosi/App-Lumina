@@ -107,5 +107,11 @@ router.get("/config/csrs", (req, res) =>
   proxyAgencyZoom(req, res, "/v1/api/csrs")
 );
 
+// List custom field definitions (IDs and names) for leads – use to match our field names or get IDs.
+// If this 404s, AgencyZoom may use a different path; check their OpenAPI spec at app.agencyzoom.com/openapi
+router.get("/config/custom-fields", (req, res) =>
+  proxyAgencyZoom(req, res, "/v1/api/custom-fields")
+);
+
 export default router;
 

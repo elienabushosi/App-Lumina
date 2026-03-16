@@ -32,6 +32,15 @@ Return ONLY valid JSON with this exact shape (no comments, no extra keys):
       "state": string | null,
       "postal_code": string | null
     },
+    "date_of_birth": string | null,
+    "marital_status": "Single" | "Married" | "Widowed" | "Separated" | "Divorced" | "Domestic Partner" | null,
+    "property": {
+      "roof_year": number | null,
+      "roof_type": string | null,
+      "flooring_types": string | null,
+      "number_of_bathrooms": number | null
+    },
+    "occupation_degree": string | null,
     "insurance": {
       "lines_of_business": [
         "auto" | "home" | "renters" | "life" | "commercial" | "workers_comp" | "other"
@@ -73,6 +82,8 @@ Return ONLY valid JSON with this exact shape (no comments, no extra keys):
 Rules:
 - Use null for missing values.
 - Do not invent specific details (names, numbers, addresses) that are not clearly stated.
+- Extract property details when the customer mentions them: roof year (e.g. 2022), roof type (e.g. asphalt shingle), flooring (e.g. ceramic tile, carpet), number of bathrooms.
+- Extract occupation_degree when stated (e.g. "insurance sales", "teacher"). For marital_status use one of the allowed values only when clearly stated.
 - If the caller is not a sales lead (e.g., wrong number, spam, pure service question),
   set lead.status = "not_a_lead" and leave other fields null or empty arrays as appropriate.
 - The JSON must be parseable by JSON.parse with no trailing commas.

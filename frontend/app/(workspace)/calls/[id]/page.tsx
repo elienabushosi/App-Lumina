@@ -60,6 +60,8 @@ export default async function CallDetailPage({
 						<CallActions
 							callId={call.id}
 							initialLeadStatus={call.lead_status}
+							hasTranscript={call.status === "transcribed"}
+							hasLeadPayload={!!call.lead_payload?.lead}
 						/>
 						<Link
 							href="/calls"

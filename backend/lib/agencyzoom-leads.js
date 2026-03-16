@@ -5,8 +5,28 @@ const AGENCYZOOM_BASE_URL =
 	process.env.AGENCYZOOM_BASE_URL || "https://api.agencyzoom.com";
 
 /**
+ * Lead custom field IDs from /api/agencyzoom/config/custom-fields (use the "fieldName" value for entityType "lead").
+ * Override via env if your org uses different IDs.
+ */
+function getLeadCustomFieldIds() {
+	return {
+		roofYear:
+			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_ROOF_YEAR || "cf54741",
+		roofType:
+			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_ROOF_TYPE || "cf54743",
+		flooringTypes:
+			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_FLOORING_TYPES || "cf54745",
+		numberOfBathrooms:
+			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_NUMBER_OF_BATHROOMS || "cf54747",
+		occupationDegree:
+			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_OCCUPATION_DEGREE || "cf54749",
+	};
+}
+
+/**
  * Read org-level AgencyZoom config (IDs, location codes, etc.).
  * For now this is driven by env vars; later we can move to per-org config in DB.
+ * Lead Source and Primary CSR must be valid IDs in your AgencyZoom org.
  */
 function getAgencyZoomLeadConfig(orgId) {
 	const cfg = {
@@ -15,7 +35,8 @@ function getAgencyZoomLeadConfig(orgId) {
 		stageId: Number(process.env.AGENCYZOOM_STAGE_ID || "0") || null,
 		assignTo: Number(process.env.AGENCYZOOM_PRIMARY_PRODUCER_ID || "0") || null,
 		csrId:
-			process.env.AGENCYZOOM_PRIMARY_CSR_ID !== undefined
+			process.env.AGENCYZOOM_PRIMARY_CSR_ID !== undefined &&
+			process.env.AGENCYZOOM_PRIMARY_CSR_ID !== ""
 				? Number(process.env.AGENCYZOOM_PRIMARY_CSR_ID || "0") || null
 				: null,
 		agencyNumber: process.env.AGENCYZOOM_LOCATION_CODE || null,
@@ -81,7 +102,45 @@ export function buildLeadDataRequest(leadPayload, orgId) {
 	const contact = lead.contact || {};
 	const address = lead.address || {};
 	const notes = lead.notes || {};
+	const property = lead.property || {};
 
+	// AgencyZoom expects custom field ID (e.g. cf54741) as fieldName, not the label. Get IDs from /api/agencyzoom/config/custom-fields (entityType "lead").
+	const ids = getLeadCustomFieldIds();
+	const customFields = [];
+	function addCustomField(fieldId, value) {
+		if (value != null && value !== "" && fieldId) {
+			customFields.push({
+				fieldName: fieldId,
+				fieldValue: String(value),
+			});
+		}
+	}
+	addCustomField(ids.roofYear, property.roof_year);
+	addCustomField(ids.roofType, property.roof_type);
+	addCustomField(ids.flooringTypes, property.flooring_types);
+	addCustomField(ids.numberOfBathrooms, property.number_of_bathrooms);
+	addCustomField(ids.occupationDegree, lead.occupation_degree);
+
+	// maritalStatus: API expects integer (e.g. 1=Single, 2=Married). Map our string or leave unset.
+	const maritalStatusMap = {
+		Single: 1,
+		Married: 2,
+		Widowed: 3,
+		Separated: 4,
+		Divorced: 5,
+		"Domestic Partner": 6,
+	};
+	const maritalStatusId =
+		lead.marital_status && maritalStatusMap[lead.marital_status];
+
+	// birthday: API expects MM/DD/YY. Pass through if already in a compatible format, else leave for custom field if needed.
+	let birthday = lead.date_of_birth ?? null;
+	if (birthday && /^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
+		const [y, m, d] = birthday.split("-");
+		birthday = `${m}/${d}/${y.slice(-2)}`;
+	}
+
+	// API expects leadSourceId (integer) and assignTo (string ID); include csrId when set.
 	const body = {
 		firstname: first || "Unknown",
 		lastname: last || "",
@@ -93,8 +152,8 @@ export function buildLeadDataRequest(leadPayload, orgId) {
 		pipelineId: cfg.pipelineId,
 		stageId: cfg.stageId,
 		leadSourceId: cfg.leadSourceId,
-		assignTo: cfg.assignTo,
-		csrId: cfg.csrId || undefined,
+		assignTo: String(cfg.assignTo),
+		...(cfg.csrId != null && { csrId: cfg.csrId }),
 		streetAddress: address.street || null,
 		streetAddressLine2: null,
 		city: address.city || null,
@@ -104,7 +163,9 @@ export function buildLeadDataRequest(leadPayload, orgId) {
 		agencyNumber: cfg.agencyNumber,
 		departmentCode: null,
 		groupCode: null,
-		// customFields, tagNames etc can be added later when we know exact IDs/codes.
+		birthday: birthday || undefined,
+		maritalStatus: maritalStatusId ?? undefined,
+		customFields: customFields.length ? customFields : undefined,
 	};
 
 	return body;
@@ -121,6 +182,15 @@ export async function createAgencyZoomLeadForCall(callRow) {
 	const body = buildLeadDataRequest(callRow.lead_payload, orgId);
 
 	const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/create`;
+	if (process.env.NODE_ENV === "development") {
+		console.log("[AgencyZoom] Lead create request (sanitized):", {
+			leadSourceId: body.leadSourceId,
+			csrId: body.csrId,
+			assignTo: body.assignTo,
+			customFieldsCount: body.customFields?.length ?? 0,
+			customFields: body.customFields,
+		});
+	}
 	const res = await fetch(url, {
 		method: "POST",
 		headers: {

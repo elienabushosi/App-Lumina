@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { config } from "@/lib/config";
 import { Loader2 } from "lucide-react";
@@ -8,13 +9,54 @@ import { Loader2 } from "lucide-react";
 type Props = {
 	callId: string;
 	initialLeadStatus: string | null;
+	hasTranscript: boolean;
+	hasLeadPayload: boolean;
 };
 
-export function CallActions({ callId, initialLeadStatus }: Props) {
+export function CallActions({
+	callId,
+	initialLeadStatus,
+	hasTranscript,
+	hasLeadPayload,
+}: Props) {
+	const router = useRouter();
 	const [isPushing, setIsPushing] = useState(false);
+	const [isExtracting, setIsExtracting] = useState(false);
 	const [message, setMessage] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [leadStatus, setLeadStatus] = useState<string | null>(initialLeadStatus);
+	const [payloadReady, setPayloadReady] = useState(hasLeadPayload);
+
+	const handleExtractLead = async () => {
+		setIsExtracting(true);
+		setError(null);
+		setMessage(null);
+
+		try {
+			const res = await fetch(
+				`${config.apiUrl}/api/calls/${encodeURIComponent(callId)}/extract-lead`,
+				{ method: "POST" }
+			);
+			const data = await res.json().catch(() => ({}));
+
+			if (!res.ok || data.error) {
+				throw new Error(
+					data.error || `Extract failed (${res.status} ${res.statusText})`
+				);
+			}
+
+			setMessage("Lead extracted. Refreshing…");
+			setPayloadReady(true);
+			setLeadStatus(data.lead_status ?? "extracted");
+			router.refresh();
+		} catch (err) {
+			setError(
+				err instanceof Error ? err.message : "Failed to extract lead from transcript."
+			);
+		} finally {
+			setIsExtracting(false);
+		}
+	};
 
 	const handlePushAgencyZoom = async () => {
 		setIsPushing(true);
@@ -52,26 +94,48 @@ export function CallActions({ callId, initialLeadStatus }: Props) {
 
 	return (
 		<div className="flex flex-col gap-2 items-start">
-			<Button
-				onClick={handlePushAgencyZoom}
-				disabled={isPushing}
-				className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
-			>
-				{isPushing ? (
-					<>
-						<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-						Sending to AgencyZoom...
-					</>
-				) : (
-					"Send to AgencyZoom"
-				)}
-			</Button>
+			<div className="flex items-center gap-2 flex-wrap">
+				<Button
+					onClick={handleExtractLead}
+					disabled={!hasTranscript || isExtracting}
+					variant="outline"
+					className="border-[#37322F] text-[#37322F] hover:bg-[#37322F]/10"
+				>
+					{isExtracting ? (
+						<>
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							Extracting...
+						</>
+					) : (
+						"Extract Lead"
+					)}
+				</Button>
+				<Button
+					onClick={handlePushAgencyZoom}
+					disabled={isPushing || !payloadReady}
+					className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+				>
+					{isPushing ? (
+						<>
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							Sending to AgencyZoom...
+						</>
+					) : (
+						"Send to AgencyZoom"
+					)}
+				</Button>
+			</div>
 			{message && (
 				<p className="text-xs text-green-700">
 					{message} {leadStatus && `(lead status: ${leadStatus})`}
 				</p>
 			)}
 			{error && <p className="text-xs text-red-700">{error}</p>}
+			{!hasTranscript && (
+				<p className="text-xs text-[#605A57]">
+					Call must be transcribed before extracting lead.
+				</p>
+			)}
 		</div>
 	);
 }
