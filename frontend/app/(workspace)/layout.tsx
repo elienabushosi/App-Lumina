@@ -294,7 +294,7 @@ export default function WorkspaceLayout({
 												: ringCentralConnected
 													? "bg-green-500"
 													: "bg-red-500"
-										}`}
+										} ml-auto`}
 									/>
 								</Link>
 							</SidebarMenuButton>
@@ -323,7 +323,7 @@ export default function WorkspaceLayout({
 												: agencyZoomConnected
 													? "bg-green-500"
 													: "bg-red-500"
-										}`}
+										} ml-auto`}
 									/>
 								</Link>
 							</SidebarMenuButton>
