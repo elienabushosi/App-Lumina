@@ -21,7 +21,34 @@ const TELEPHONY_SESSIONS_FILTER = "/restapi/v1.0/account/~/telephony/sessions?st
 
 router.get("/status", async (req, res) => {
 	const tokens = await getRingCentralTokens(STATE_KEY);
-	res.json({ connected: !!(tokens && tokens.access_token) });
+	if (!tokens || !tokens.access_token) {
+		return res.json({ connected: false });
+	}
+	// access_token expires quickly; if it's expired then our next RingCentral call
+	// will require a refresh. If refresh fails you'll see "Refresh token has expired".
+	const nowSec = Math.floor(Date.now() / 1000);
+	const expireTimeSec = typeof tokens.expire_time === "number" ? tokens.expire_time : null;
+	// Some RingCentral SDKs provide expire_time in milliseconds; normalize if needed.
+	const normalizedExpireSec =
+		typeof expireTimeSec === "number" && expireTimeSec > 1_000_000_000_0
+			? Math.floor(expireTimeSec / 1000)
+			: expireTimeSec;
+
+	const connected =
+		typeof normalizedExpireSec === "number" && normalizedExpireSec > nowSec + 60;
+
+	const payload = { connected };
+	if (process.env.NODE_ENV === "development") {
+		// Help us verify units without reading the DB directly.
+		payload._debug = {
+			nowSec,
+			rawExpireTime: tokens.expire_time,
+			expireTimeSec,
+			normalizedExpireSec,
+		};
+	}
+
+	res.json(payload);
 });
 
 router.get("/auth", (req, res) => {

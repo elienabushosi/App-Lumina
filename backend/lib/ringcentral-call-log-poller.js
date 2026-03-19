@@ -80,7 +80,13 @@ async function poll() {
 		let newCount = 0;
 		for (const record of allRecords) {
 			const id = record.id;
-			if (!id || processedCallIds.has(id)) continue;
+			const recordingContentUri = record.recording?.contentUri ?? null;
+			const hasRecording = !!recordingContentUri;
+
+			if (!id) continue;
+			// If we already saw this call but there was no recording content URI yet,
+			// keep checking until it becomes available.
+			if (processedCallIds.has(id) && !hasRecording) continue;
 
 			processedCallIds.add(id);
 			newCount++;
@@ -92,8 +98,6 @@ async function poll() {
 			const type = record.type ?? "—";
 			const result = record.result ?? "—";
 			const direction = record.direction ?? "—";
-			const recordingContentUri = record.recording?.contentUri ?? null;
-			const hasRecording = !!recordingContentUri;
 
 			console.log("[CallLog] Ended call:", {
 				id,

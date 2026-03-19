@@ -23,7 +23,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lock, CreditCard, Mail, CheckCircle2, Loader2, X, Check, Gem, Phone, Link2 } from "lucide-react";
+import {
+	Lock,
+	CreditCard,
+	Mail,
+	CheckCircle2,
+	Loader2,
+	X,
+	Check,
+	Gem,
+} from "lucide-react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -51,19 +60,26 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
 const STRIPE_PRODUCT_ID = process.env.NEXT_PUBLIC_STRIPE_PRODUCT_ID ?? "";
-const STRIPE_ANNUAL_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_ANNUAL_PRICE_ID ?? "";
-const STRIPE_MONTHLY_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_MONTHLY_PRICE_ID ?? "";
+const STRIPE_ANNUAL_PRICE_ID =
+	process.env.NEXT_PUBLIC_STRIPE_ANNUAL_PRICE_ID ?? "";
+const STRIPE_MONTHLY_PRICE_ID =
+	process.env.NEXT_PUBLIC_STRIPE_MONTHLY_PRICE_ID ?? "";
 
-const passwordResetSchema = z.object({
-	code: z.string().min(6, "Code must be at least 6 characters").max(10, "Code must be 10 characters or less"),
-	newPassword: z
-		.string()
-		.min(6, "Password must be at least 6 characters"),
-	confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-	message: "Passwords do not match",
-	path: ["confirmPassword"],
-});
+const passwordResetSchema = z
+	.object({
+		code: z
+			.string()
+			.min(6, "Code must be at least 6 characters")
+			.max(10, "Code must be 10 characters or less"),
+		newPassword: z
+			.string()
+			.min(6, "Password must be at least 6 characters"),
+		confirmPassword: z.string(),
+	})
+	.refine((data) => data.newPassword === data.confirmPassword, {
+		message: "Passwords do not match",
+		path: ["confirmPassword"],
+	});
 
 type PasswordResetFormValues = z.infer<typeof passwordResetSchema>;
 
@@ -83,13 +99,16 @@ export default function SettingsPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 	const [codeSent, setCodeSent] = useState(false);
-	const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+	const [subscriptionStatus, setSubscriptionStatus] =
+		useState<SubscriptionStatus | null>(null);
 	const [products, setProducts] = useState<StripeProduct[]>([]);
 	const [isLoadingBilling, setIsLoadingBilling] = useState(false);
 	const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
 	const [isCanceling, setIsCanceling] = useState(false);
 	const [showCancelDialog, setShowCancelDialog] = useState(false);
-	const [selectedBillingInterval, setSelectedBillingInterval] = useState<"month" | "year">("year");
+	const [selectedBillingInterval, setSelectedBillingInterval] = useState<
+		"month" | "year"
+	>("year");
 	const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
 	const [isPreviewingUpgrade, setIsPreviewingUpgrade] = useState(false);
 	const [isUpgrading, setIsUpgrading] = useState(false);
@@ -98,13 +117,19 @@ export default function SettingsPage() {
 		currency: string;
 		formatted: string;
 	} | null>(null);
-	const [ringCentralConnected, setRingCentralConnected] = useState<boolean | null>(null);
-	const [agencyZoomConnected, setAgencyZoomConnected] = useState<boolean | null>(null);
+	const [ringCentralConnected, setRingCentralConnected] = useState<
+		boolean | null
+	>(null);
+	const [agencyZoomConnected, setAgencyZoomConnected] = useState<
+		boolean | null
+	>(null);
 	const [agencyZoomEmail, setAgencyZoomEmail] = useState("");
 	const [agencyZoomPassword, setAgencyZoomPassword] = useState("");
 	const [isConnectingAgencyZoom, setIsConnectingAgencyZoom] = useState(false);
 	const [agencyZoomError, setAgencyZoomError] = useState<string | null>(null);
-	const [agencyZoomSuccess, setAgencyZoomSuccess] = useState<string | null>(null);
+	const [agencyZoomSuccess, setAgencyZoomSuccess] = useState<string | null>(
+		null,
+	);
 
 	const isOwner = currentUser?.user.Role === "Owner";
 
@@ -133,7 +158,9 @@ export default function SettingsPage() {
 	useEffect(() => {
 		const fetchRingCentralStatus = async () => {
 			try {
-				const res = await fetch(`${config.apiUrl}/api/ringcentral/status`);
+				const res = await fetch(
+					`${config.apiUrl}/api/ringcentral/status`,
+				);
 				const data = await res.json();
 				setRingCentralConnected(data.connected ?? false);
 			} catch {
@@ -142,7 +169,9 @@ export default function SettingsPage() {
 		};
 		const fetchAgencyZoomStatus = async () => {
 			try {
-				const res = await fetch(`${config.apiUrl}/api/agencyzoom/status`);
+				const res = await fetch(
+					`${config.apiUrl}/api/agencyzoom/status`,
+				);
 				const data = await res.json();
 				setAgencyZoomConnected(data.connected ?? false);
 			} catch {
@@ -216,7 +245,11 @@ export default function SettingsPage() {
 			setProducts(productsList);
 		} catch (err) {
 			console.error("Error fetching products:", err);
-			setError(err instanceof Error ? err.message : "Failed to load pricing plans");
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to load pricing plans",
+			);
 		}
 	};
 
@@ -232,10 +265,17 @@ export default function SettingsPage() {
 
 	// Set toggle to match current subscription interval (only if subscription is active)
 	useEffect(() => {
-		if (subscriptionStatus?.status === "active" && subscriptionStatus.plan && products.length > 0) {
-			const currentProduct = products.find(p => p.priceId === subscriptionStatus.plan);
+		if (
+			subscriptionStatus?.status === "active" &&
+			subscriptionStatus.plan &&
+			products.length > 0
+		) {
+			const currentProduct = products.find(
+				(p) => p.priceId === subscriptionStatus.plan,
+			);
 			if (currentProduct) {
-				const interval = currentProduct.interval === 'month' ? 'month' : 'year';
+				const interval =
+					currentProduct.interval === "month" ? "month" : "year";
 				setSelectedBillingInterval(interval);
 			}
 		} else {
@@ -259,13 +299,15 @@ export default function SettingsPage() {
 						Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
 						"Content-Type": "application/json",
 					},
-				}
+				},
 			);
 
 			const result = await response.json();
 
 			if (!response.ok) {
-				throw new Error(result.message || "Failed to send password reset code");
+				throw new Error(
+					result.message || "Failed to send password reset code",
+				);
 			}
 
 			setCodeSent(true);
@@ -274,7 +316,7 @@ export default function SettingsPage() {
 			setError(
 				err instanceof Error
 					? err.message
-					: "Failed to request password reset code"
+					: "Failed to request password reset code",
 			);
 		} finally {
 			setIsRequestingCode(false);
@@ -293,7 +335,7 @@ export default function SettingsPage() {
 			setCodeSent(false);
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to reset password"
+				err instanceof Error ? err.message : "Failed to reset password",
 			);
 		} finally {
 			setIsResetting(false);
@@ -312,7 +354,7 @@ export default function SettingsPage() {
 			window.location.href = url;
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to start checkout"
+				err instanceof Error ? err.message : "Failed to start checkout",
 			);
 			setIsCreatingCheckout(false);
 		}
@@ -325,12 +367,16 @@ export default function SettingsPage() {
 
 		try {
 			await cancelSubscription();
-			setSuccess("Subscription will be canceled at the end of the current period");
+			setSuccess(
+				"Subscription will be canceled at the end of the current period",
+			);
 			// Refresh subscription status to show updated cancelAtPeriodEnd
 			await fetchSubscriptionStatus();
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to cancel subscription"
+				err instanceof Error
+					? err.message
+					: "Failed to cancel subscription",
 			);
 		} finally {
 			setIsCanceling(false);
@@ -357,14 +403,18 @@ export default function SettingsPage() {
 			const data = await res.json();
 
 			if (!res.ok || !data.success) {
-				throw new Error(data.error || "Failed to connect to AgencyZoom");
+				throw new Error(
+					data.error || "Failed to connect to AgencyZoom",
+				);
 			}
 
 			setAgencyZoomSuccess("AgencyZoom connected successfully.");
 			setAgencyZoomConnected(true);
 		} catch (err) {
 			setAgencyZoomError(
-				err instanceof Error ? err.message : "Failed to connect to AgencyZoom"
+				err instanceof Error
+					? err.message
+					: "Failed to connect to AgencyZoom",
 			);
 			setAgencyZoomConnected(false);
 		} finally {
@@ -375,7 +425,9 @@ export default function SettingsPage() {
 	const handleUpgradeClick = async () => {
 		// Find annual price ID
 		const annualPriceId = products.find(
-			p => p.id === STRIPE_PRODUCT_ID && p.priceId === STRIPE_ANNUAL_PRICE_ID
+			(p) =>
+				p.id === STRIPE_PRODUCT_ID &&
+				p.priceId === STRIPE_ANNUAL_PRICE_ID,
 		)?.priceId;
 
 		if (!annualPriceId) {
@@ -397,7 +449,9 @@ export default function SettingsPage() {
 			setShowUpgradeDialog(true);
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to preview upgrade"
+				err instanceof Error
+					? err.message
+					: "Failed to preview upgrade",
 			);
 		} finally {
 			setIsPreviewingUpgrade(false);
@@ -407,7 +461,9 @@ export default function SettingsPage() {
 	const handleConfirmUpgrade = async () => {
 		// Find annual price ID
 		const annualPriceId = products.find(
-			p => p.id === STRIPE_PRODUCT_ID && p.priceId === STRIPE_ANNUAL_PRICE_ID
+			(p) =>
+				p.id === STRIPE_PRODUCT_ID &&
+				p.priceId === STRIPE_ANNUAL_PRICE_ID,
 		)?.priceId;
 
 		if (!annualPriceId) {
@@ -427,7 +483,9 @@ export default function SettingsPage() {
 			await fetchSubscriptionStatus();
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to upgrade subscription"
+				err instanceof Error
+					? err.message
+					: "Failed to upgrade subscription",
 			);
 		} finally {
 			setIsUpgrading(false);
@@ -521,8 +579,9 @@ export default function SettingsPage() {
 							{!codeSent ? (
 								<div className="space-y-4">
 									<p className="text-sm text-[#605A57]">
-										Click the button below to receive a password reset code via
-										email. The code will expire in 15 minutes.
+										Click the button below to receive a
+										password reset code via email. The code
+										will expire in 15 minutes.
 									</p>
 									<Button
 										onClick={handleRequestCode}
@@ -541,7 +600,10 @@ export default function SettingsPage() {
 								</div>
 							) : (
 								<Form {...form}>
-									<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+									<form
+										onSubmit={form.handleSubmit(onSubmit)}
+										className="space-y-4"
+									>
 										{success && (
 											<div className="p-3 bg-green-50 border border-green-200 rounded-md flex items-center gap-2 text-green-700 text-sm">
 												<CheckCircle2 className="h-4 w-4" />
@@ -617,17 +679,19 @@ export default function SettingsPage() {
 												disabled={isResetting}
 												className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
 											>
-												{isResetting ? "Updating..." : "Update Password"}
+												{isResetting
+													? "Updating..."
+													: "Update Password"}
 											</Button>
 											<Button
 												type="button"
 												variant="outline"
-											onClick={() => {
-												setCodeSent(false);
-												form.reset();
-												setError(null);
-												setSuccess(null);
-											}}
+												onClick={() => {
+													setCodeSent(false);
+													form.reset();
+													setError(null);
+													setSuccess(null);
+												}}
 											>
 												Cancel
 											</Button>
@@ -642,13 +706,17 @@ export default function SettingsPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2">
-								<Phone className="h-5 w-5" />
-								RingCentral
+								<img
+									src="/RingCentral_logo.png"
+									alt="RingCentral"
+									className="h-8 w-auto object-contain shrink-0"
+								/>
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<p className="text-sm text-[#605A57]">
-								Connect your RingCentral account so Lumina can process calls and create leads.
+								Connect your RingCentral account so Lumina can
+								process calls and create leads.
 							</p>
 							{ringCentralConnected === null ? (
 								<div className="flex items-center gap-2 text-sm text-[#605A57]">
@@ -661,14 +729,20 @@ export default function SettingsPage() {
 									Connected
 								</div>
 							) : (
-								<Button
-									className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
-									onClick={() => {
-										window.location.href = `${config.apiUrl}/api/ringcentral/auth`;
-									}}
-								>
-									Connect RingCentral
-								</Button>
+								<div className="flex items-center justify-between gap-3">
+									<div className="flex items-center gap-2 text-sm text-red-700">
+										<X className="h-4 w-4" />
+										Disconnected
+									</div>
+									<Button
+										className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+										onClick={() => {
+											window.location.href = `${config.apiUrl}/api/ringcentral/auth`;
+										}}
+									>
+										Reconnect
+									</Button>
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -677,13 +751,17 @@ export default function SettingsPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2">
-								<Link2 className="h-5 w-5" />
-								AgencyZoom
+								<img
+									src="/AgencyZoom-removebg-preview.png"
+									alt="AgencyZoom"
+									className="h-8 w-auto object-contain shrink-0"
+								/>
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<p className="text-sm text-[#605A57]">
-								Connect your AgencyZoom account so Lumina can sync leads and activity.
+								Connect your AgencyZoom account so Lumina can
+								sync leads and activity.
 							</p>
 							{agencyZoomConnected ? (
 								<div className="flex items-center gap-2 text-sm text-green-700">
@@ -711,7 +789,11 @@ export default function SettingsPage() {
 											<Input
 												type="email"
 												value={agencyZoomEmail}
-												onChange={(e) => setAgencyZoomEmail(e.target.value)}
+												onChange={(e) =>
+													setAgencyZoomEmail(
+														e.target.value,
+													)
+												}
 												placeholder="Enter your AgencyZoom login email"
 											/>
 										</div>
@@ -722,7 +804,11 @@ export default function SettingsPage() {
 											<Input
 												type="password"
 												value={agencyZoomPassword}
-												onChange={(e) => setAgencyZoomPassword(e.target.value)}
+												onChange={(e) =>
+													setAgencyZoomPassword(
+														e.target.value,
+													)
+												}
 												placeholder="Enter your AgencyZoom password"
 											/>
 										</div>
@@ -774,12 +860,17 @@ export default function SettingsPage() {
 											</p>
 											<Badge
 												variant="outline"
-												className={getStatusBadgeColor(subscriptionStatus.status)}
+												className={getStatusBadgeColor(
+													subscriptionStatus.status,
+												)}
 											>
-												{getStatusLabel(subscriptionStatus.status)}
+												{getStatusLabel(
+													subscriptionStatus.status,
+												)}
 											</Badge>
 										</div>
-										{subscriptionStatus.status === "active" &&
+										{subscriptionStatus.status ===
+											"active" &&
 											subscriptionStatus.currentPeriodEnd && (
 												<div className="text-right">
 													<p className="text-xs text-[#605A57]">
@@ -789,85 +880,135 @@ export default function SettingsPage() {
 													</p>
 													<p className="text-sm font-medium text-[#37322F]">
 														{format(
-															new Date(subscriptionStatus.currentPeriodEnd),
-															"MMM d, yyyy"
+															new Date(
+																subscriptionStatus.currentPeriodEnd,
+															),
+															"MMM d, yyyy",
 														)}
 													</p>
 												</div>
 											)}
 									</div>
 
+									{subscriptionStatus.status === "active" &&
+										isOwner && (
+											<>
+												{subscriptionStatus.cancelAtPeriodEnd && (
+													<div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+														<p className="text-sm text-yellow-700">
+															<strong>
+																Subscription
+																Canceled
+															</strong>{" "}
+															- Active until{" "}
+															{subscriptionStatus.currentPeriodEnd
+																? format(
+																		new Date(
+																			subscriptionStatus.currentPeriodEnd,
+																		),
+																		"MMM d, yyyy",
+																	)
+																: "end of period"}
+														</p>
+													</div>
+												)}
+												{!subscriptionStatus.cancelAtPeriodEnd && (
+													<>
+														<Button
+															variant="outline"
+															onClick={() =>
+																setShowCancelDialog(
+																	true,
+																)
+															}
+															disabled={
+																isCanceling
+															}
+															className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+														>
+															<X className="h-4 w-4 mr-2" />
+															Cancel Subscription
+														</Button>
 
-									{subscriptionStatus.status === "active" && isOwner && (
-										<>
-											{subscriptionStatus.cancelAtPeriodEnd && (
-												<div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-													<p className="text-sm text-yellow-700">
-														<strong>Subscription Canceled</strong> - Active until{" "}
-														{subscriptionStatus.currentPeriodEnd
-															? format(
-																	new Date(subscriptionStatus.currentPeriodEnd),
-																	"MMM d, yyyy"
-															  )
-															: "end of period"}
-													</p>
-												</div>
-											)}
-											{!subscriptionStatus.cancelAtPeriodEnd && (
-												<>
-													<Button
-														variant="outline"
-														onClick={() => setShowCancelDialog(true)}
-														disabled={isCanceling}
-														className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-													>
-														<X className="h-4 w-4 mr-2" />
-														Cancel Subscription
-													</Button>
-
-													{/* Cancel Subscription Confirmation Dialog */}
-													<AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-														<AlertDialogContent>
-															{/* Logo placeholder */}
-															<div className="flex justify-center mb-4">
-																<div
-																	className="h-8 w-32 sm:h-9 sm:w-36 bg-[rgba(55,50,47,0.08)] rounded border border-[rgba(55,50,47,0.12)] flex items-center justify-center"
-																	aria-hidden
-																>
-																	<span className="text-[10px] text-[#6b7280] text-center">144×36</span>
+														{/* Cancel Subscription Confirmation Dialog */}
+														<AlertDialog
+															open={
+																showCancelDialog
+															}
+															onOpenChange={
+																setShowCancelDialog
+															}
+														>
+															<AlertDialogContent>
+																{/* Logo placeholder */}
+																<div className="flex justify-center mb-4">
+																	<div
+																		className="h-8 w-32 sm:h-9 sm:w-36 bg-[rgba(55,50,47,0.08)] rounded border border-[rgba(55,50,47,0.12)] flex items-center justify-center"
+																		aria-hidden
+																	>
+																		<span className="text-[10px] text-[#6b7280] text-center">
+																			144×36
+																		</span>
+																	</div>
 																</div>
-															</div>
-															<AlertDialogHeader>
-																<AlertDialogTitle>Sorry to see you go!</AlertDialogTitle>
-																<AlertDialogDescription>
-																	Are you sure you want to cancel your subscription? It will remain active until the end of the current billing period.
-																</AlertDialogDescription>
-															</AlertDialogHeader>
-															<AlertDialogFooter>
-																<AlertDialogCancel disabled={isCanceling}>
-																	Keep Subscription
-																</AlertDialogCancel>
-																<AlertDialogAction
-																	onClick={handleCancelSubscription}
-																	disabled={isCanceling}
-																	className="bg-red-600 hover:bg-red-700 text-white"
-																>
-																	{isCanceling ? (
-																		<>
-																			<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-																			Canceling...
-																		</>
-																	) : (
-																		"Cancel Subscription"
-																	)}
-																</AlertDialogAction>
-															</AlertDialogFooter>
-														</AlertDialogContent>
-													</AlertDialog>
-												</>
-											)}
-										</>
-									)}
+																<AlertDialogHeader>
+																	<AlertDialogTitle>
+																		Sorry to
+																		see you
+																		go!
+																	</AlertDialogTitle>
+																	<AlertDialogDescription>
+																		Are you
+																		sure you
+																		want to
+																		cancel
+																		your
+																		subscription?
+																		It will
+																		remain
+																		active
+																		until
+																		the end
+																		of the
+																		current
+																		billing
+																		period.
+																	</AlertDialogDescription>
+																</AlertDialogHeader>
+																<AlertDialogFooter>
+																	<AlertDialogCancel
+																		disabled={
+																			isCanceling
+																		}
+																	>
+																		Keep
+																		Subscription
+																	</AlertDialogCancel>
+																	<AlertDialogAction
+																		onClick={
+																			handleCancelSubscription
+																		}
+																		disabled={
+																			isCanceling
+																		}
+																		className="bg-red-600 hover:bg-red-700 text-white"
+																	>
+																		{isCanceling ? (
+																			<>
+																				<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+																				Canceling...
+																			</>
+																		) : (
+																			"Cancel Subscription"
+																		)}
+																	</AlertDialogAction>
+																</AlertDialogFooter>
+															</AlertDialogContent>
+														</AlertDialog>
+													</>
+												)}
+											</>
+										)}
 								</div>
 							) : (
 								<p className="text-sm text-[#605A57]">
@@ -876,326 +1017,600 @@ export default function SettingsPage() {
 							)}
 
 							{/* Current Subscription Details - Show above Available Plans */}
-							{isOwner && subscriptionStatus?.status === "active" && (() => {
-								const currentSubscriptionPriceId = subscriptionStatus?.plan;
-								const currentSubscriptionProduct = currentSubscriptionPriceId 
-									? products.find(p => p.priceId === currentSubscriptionPriceId)
-									: null;
-
-								if (!currentSubscriptionProduct) return null;
-
-								const quantity = subscriptionStatus?.quantity || 1;
-								const perSeatPrice = currentSubscriptionProduct.amount || 0;
-								const totalPrice = perSeatPrice * quantity;
-
-								return (
-									<div className="pt-4 border-t border-[#E0DEDB]">
-										<Card className="border-2 border-[#6f9f6b] bg-green-50/30">
-											<CardHeader>
-												<CardTitle className="text-lg flex items-center gap-2">
-													<CheckCircle2 className="h-5 w-5 text-[#6f9f6b]" />
-													Current Subscription
-												</CardTitle>
-											</CardHeader>
-											<CardContent>
-												<div className="space-y-4">
-													<div className="flex items-center justify-between">
-														<div>
-															<p className="font-semibold text-[#37322F]">
-																{currentSubscriptionProduct.name}
-															</p>
-															<p className="text-sm text-[#605A57]">
-																{currentSubscriptionProduct.interval === 'month' ? 'Billed monthly' : 'Billed annually'}
-															</p>
-														</div>
-														<div className="text-right">
-															<p className="text-2xl font-bold text-[#37322F]">
-																{formatPrice(totalPrice, currentSubscriptionProduct.currency, currentSubscriptionProduct.priceId)}
-															</p>
-															<p className="text-xs text-[#605A57]">
-																{currentSubscriptionProduct.interval === 'month' ? 'per month' : 'per year'}
-															</p>
-														</div>
-													</div>
-
-													{/* Seat Count Breakdown */}
-													<div className="pt-3 border-t border-[#E0DEDB]">
-														<div className="flex items-center justify-between text-sm">
-															<span className="text-[#605A57]">
-																{quantity} {quantity === 1 ? 'seat' : 'seats'} @ {formatPrice(perSeatPrice, currentSubscriptionProduct.currency, currentSubscriptionProduct.priceId)}/{currentSubscriptionProduct.interval === 'month' ? 'month' : 'year'}
-															</span>
-															<span className="font-semibold text-[#37322F]">
-																= {formatPrice(totalPrice, currentSubscriptionProduct.currency, currentSubscriptionProduct.priceId)}/{currentSubscriptionProduct.interval === 'month' ? 'month' : 'year'}
-															</span>
-														</div>
-													</div>
-													
-													{/* Upgrade Button - Only show for monthly subscribers */}
-													{currentSubscriptionProduct.priceId === STRIPE_MONTHLY_PRICE_ID && (() => {
-														const annualPriceForUpgrade = products.find(
-															(p) => p.id === STRIPE_PRODUCT_ID && p.priceId === STRIPE_ANNUAL_PRICE_ID
-														);
-														const upgradeMonthlyAnnualCost = currentSubscriptionProduct.amount ? currentSubscriptionProduct.amount * 12 : 0;
-														const upgradeAnnualCost = annualPriceForUpgrade?.amount || 0;
-														const upgradeSavings = upgradeMonthlyAnnualCost - upgradeAnnualCost;
-														const upgradeSavingsFormatted = upgradeSavings > 0 && annualPriceForUpgrade?.currency
-															? new Intl.NumberFormat("en-US", {
-																	style: "currency",
-																	currency: annualPriceForUpgrade.currency.toUpperCase(),
-																	minimumFractionDigits: 0,
-																	maximumFractionDigits: 0,
-																}).format(Math.floor(upgradeSavings / 100))
-															: null;
-														
-														return (
-															<Button
-																onClick={handleUpgradeClick}
-																disabled={isPreviewingUpgrade || isUpgrading}
-																className="w-full bg-[#37322F] hover:bg-[#37322F]/90 text-white"
-															>
-																{isPreviewingUpgrade ? (
-																	<>
-																		<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-																		Calculating...
-																	</>
-																) : (
-																	upgradeSavingsFormatted ? `Upgrade & save ${upgradeSavingsFormatted} annually` : "Upgrade to annual plan"
-																)}
-															</Button>
-														);
-													})()}
-												</div>
-											</CardContent>
-										</Card>
-									</div>
-								);
-							})()}
-
-							{/* Pricing Plans - Owner Only */}
-							{isOwner && (() => {
-								// Hide available plans if user is on monthly subscription
-								const isMonthlySubscriber = subscriptionStatus?.status === "active" && 
-									subscriptionStatus.plan === STRIPE_MONTHLY_PRICE_ID;
-								
-								if (isMonthlySubscriber) {
-									return null; // Don't show available plans for monthly subscribers
-								}
-
-								return (
-								<div className="space-y-4 pt-4 border-t border-[#E0DEDB]">
-									<div>
-										<h3 className="text-lg font-semibold text-[#37322F] mb-2">
-											Available Plans
-										</h3>
-										<p className="text-sm text-[#605A57] mb-4">
-											Choose a plan that works for your organization
-										</p>
-									</div>
-
-									{products.length === 0 ? (
-										<div className="text-sm text-[#605A57]">
-											Loading pricing plans...
-										</div>
-									) : (() => {
-										// Find current subscription price
-										const currentSubscriptionPriceId = subscriptionStatus?.plan;
-										const currentSubscriptionProduct = currentSubscriptionPriceId 
-											? products.find(p => p.priceId === currentSubscriptionPriceId)
+							{isOwner &&
+								subscriptionStatus?.status === "active" &&
+								(() => {
+									const currentSubscriptionPriceId =
+										subscriptionStatus?.plan;
+									const currentSubscriptionProduct =
+										currentSubscriptionPriceId
+											? products.find(
+													(p) =>
+														p.priceId ===
+														currentSubscriptionPriceId,
+												)
 											: null;
 
-										// Group products by product ID to show monthly/annual toggle
-										const productGroups = products.reduce((acc, product) => {
-											if (!acc[product.id]) {
-												acc[product.id] = {
-													id: product.id,
-													name: product.name,
-													description: product.description,
-													prices: [],
-												};
-											}
-											acc[product.id].prices.push(product);
-											return acc;
-										}, {} as Record<string, { id: string; name: string; description: string | null; prices: StripeProduct[] }>);
+									if (!currentSubscriptionProduct)
+										return null;
 
-										const productGroupsArray = Object.values(productGroups);
+									const quantity =
+										subscriptionStatus?.quantity || 1;
+									const perSeatPrice =
+										currentSubscriptionProduct.amount || 0;
+									const totalPrice = perSeatPrice * quantity;
 
-										return (
-											<div className="space-y-6">
-												{productGroupsArray.map((group) => {
-													const monthlyPrice = group.prices.find(p => p.interval === 'month');
-													const annualPrice = group.prices.find(p => p.interval === 'year');
-													const selectedPrice = selectedBillingInterval === 'month' ? monthlyPrice : annualPrice;
+									return (
+										<div className="pt-4 border-t border-[#E0DEDB]">
+											<Card className="border-2 border-[#6f9f6b] bg-green-50/30">
+												<CardHeader>
+													<CardTitle className="text-lg flex items-center gap-2">
+														<CheckCircle2 className="h-5 w-5 text-[#6f9f6b]" />
+														Current Subscription
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													<div className="space-y-4">
+														<div className="flex items-center justify-between">
+															<div>
+																<p className="font-semibold text-[#37322F]">
+																	{
+																		currentSubscriptionProduct.name
+																	}
+																</p>
+																<p className="text-sm text-[#605A57]">
+																	{currentSubscriptionProduct.interval ===
+																	"month"
+																		? "Billed monthly"
+																		: "Billed annually"}
+																</p>
+															</div>
+															<div className="text-right">
+																<p className="text-2xl font-bold text-[#37322F]">
+																	{formatPrice(
+																		totalPrice,
+																		currentSubscriptionProduct.currency,
+																		currentSubscriptionProduct.priceId,
+																	)}
+																</p>
+																<p className="text-xs text-[#605A57]">
+																	{currentSubscriptionProduct.interval ===
+																	"month"
+																		? "per month"
+																		: "per year"}
+																</p>
+															</div>
+														</div>
 
-													// Annual discount calculation – product-agnostic; works with any Stripe monthly/annual prices
-													const monthlyAnnualCost = monthlyPrice?.amount ? monthlyPrice.amount * 12 : 0;
-													const annualCost = annualPrice?.amount || 0;
-													const savings = monthlyAnnualCost - annualCost;
-													const savingsFormatted = savings > 0 && annualPrice?.currency
-														? new Intl.NumberFormat("en-US", {
-																style: "currency",
-																currency: annualPrice.currency.toUpperCase(),
-																minimumFractionDigits: 0,
-																maximumFractionDigits: 0,
-															}).format(Math.floor(savings / 100))
-														: null;
-													const savingsPercentage = monthlyAnnualCost > 0 && savings > 0
-														? Math.ceil((savings / monthlyAnnualCost) * 100)
-														: null;
+														{/* Seat Count Breakdown */}
+														<div className="pt-3 border-t border-[#E0DEDB]">
+															<div className="flex items-center justify-between text-sm">
+																<span className="text-[#605A57]">
+																	{quantity}{" "}
+																	{quantity ===
+																	1
+																		? "seat"
+																		: "seats"}{" "}
+																	@{" "}
+																	{formatPrice(
+																		perSeatPrice,
+																		currentSubscriptionProduct.currency,
+																		currentSubscriptionProduct.priceId,
+																	)}
+																	/
+																	{currentSubscriptionProduct.interval ===
+																	"month"
+																		? "month"
+																		: "year"}
+																</span>
+																<span className="font-semibold text-[#37322F]">
+																	={" "}
+																	{formatPrice(
+																		totalPrice,
+																		currentSubscriptionProduct.currency,
+																		currentSubscriptionProduct.priceId,
+																	)}
+																	/
+																	{currentSubscriptionProduct.interval ===
+																	"month"
+																		? "month"
+																		: "year"}
+																</span>
+															</div>
+														</div>
+
+														{/* Upgrade Button - Only show for monthly subscribers */}
+														{currentSubscriptionProduct.priceId ===
+															STRIPE_MONTHLY_PRICE_ID &&
+															(() => {
+																const annualPriceForUpgrade =
+																	products.find(
+																		(p) =>
+																			p.id ===
+																				STRIPE_PRODUCT_ID &&
+																			p.priceId ===
+																				STRIPE_ANNUAL_PRICE_ID,
+																	);
+																const upgradeMonthlyAnnualCost =
+																	currentSubscriptionProduct.amount
+																		? currentSubscriptionProduct.amount *
+																			12
+																		: 0;
+																const upgradeAnnualCost =
+																	annualPriceForUpgrade?.amount ||
+																	0;
+																const upgradeSavings =
+																	upgradeMonthlyAnnualCost -
+																	upgradeAnnualCost;
+																const upgradeSavingsFormatted =
+																	upgradeSavings >
+																		0 &&
+																	annualPriceForUpgrade?.currency
+																		? new Intl.NumberFormat(
+																				"en-US",
+																				{
+																					style: "currency",
+																					currency:
+																						annualPriceForUpgrade.currency.toUpperCase(),
+																					minimumFractionDigits: 0,
+																					maximumFractionDigits: 0,
+																				},
+																			).format(
+																				Math.floor(
+																					upgradeSavings /
+																						100,
+																				),
+																			)
+																		: null;
+
+																return (
+																	<Button
+																		onClick={
+																			handleUpgradeClick
+																		}
+																		disabled={
+																			isPreviewingUpgrade ||
+																			isUpgrading
+																		}
+																		className="w-full bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+																	>
+																		{isPreviewingUpgrade ? (
+																			<>
+																				<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+																				Calculating...
+																			</>
+																		) : upgradeSavingsFormatted ? (
+																			`Upgrade & save ${upgradeSavingsFormatted} annually`
+																		) : (
+																			"Upgrade to annual plan"
+																		)}
+																	</Button>
+																);
+															})()}
+													</div>
+												</CardContent>
+											</Card>
+										</div>
+									);
+								})()}
+
+							{/* Pricing Plans - Owner Only */}
+							{isOwner &&
+								(() => {
+									// Hide available plans if user is on monthly subscription
+									const isMonthlySubscriber =
+										subscriptionStatus?.status ===
+											"active" &&
+										subscriptionStatus.plan ===
+											STRIPE_MONTHLY_PRICE_ID;
+
+									if (isMonthlySubscriber) {
+										return null; // Don't show available plans for monthly subscribers
+									}
+
+									return (
+										<div className="space-y-4 pt-4 border-t border-[#E0DEDB]">
+											<div>
+												<h3 className="text-lg font-semibold text-[#37322F] mb-2">
+													Available Plans
+												</h3>
+												<p className="text-sm text-[#605A57] mb-4">
+													Choose a plan that works for
+													your organization
+												</p>
+											</div>
+
+											{products.length === 0 ? (
+												<div className="text-sm text-[#605A57]">
+													Loading pricing plans...
+												</div>
+											) : (
+												(() => {
+													// Find current subscription price
+													const currentSubscriptionPriceId =
+														subscriptionStatus?.plan;
+													const currentSubscriptionProduct =
+														currentSubscriptionPriceId
+															? products.find(
+																	(p) =>
+																		p.priceId ===
+																		currentSubscriptionPriceId,
+																)
+															: null;
+
+													// Group products by product ID to show monthly/annual toggle
+													const productGroups =
+														products.reduce(
+															(acc, product) => {
+																if (
+																	!acc[
+																		product
+																			.id
+																	]
+																) {
+																	acc[
+																		product.id
+																	] = {
+																		id: product.id,
+																		name: product.name,
+																		description:
+																			product.description,
+																		prices: [],
+																	};
+																}
+																acc[
+																	product.id
+																].prices.push(
+																	product,
+																);
+																return acc;
+															},
+															{} as Record<
+																string,
+																{
+																	id: string;
+																	name: string;
+																	description:
+																		| string
+																		| null;
+																	prices: StripeProduct[];
+																}
+															>,
+														);
+
+													const productGroupsArray =
+														Object.values(
+															productGroups,
+														);
 
 													return (
-														<Card key={group.id} className="hover:shadow-md transition-shadow">
-															<CardHeader>
-																<CardTitle className="text-lg">
-																	{group.name}
-																</CardTitle>
-																{group.description && (
-																	<p className="text-sm text-[#605A57]">
-																		{group.description}
-																	</p>
-																)}
-															</CardHeader>
-															<CardContent className="space-y-4">
-																{/* Features List */}
-																<div className="space-y-3">
-																{[
-																	"Feature 1",
-																	"Feature 2",
-																	"Feature 3",
-																	"Feature 4",
-																	"Feature 5",
-																].map((feature) => (
-																		<div key={feature} className="flex items-center gap-3">
-																			<div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: '#6f9f6b' }}>
-																				<Check className="h-4 w-4 text-white" />
-																			</div>
-																			<span className="text-sm text-[#37322F]">{feature}</span>
-																		</div>
-																	))}
-																</div>
+														<div className="space-y-6">
+															{productGroupsArray.map(
+																(group) => {
+																	const monthlyPrice =
+																		group.prices.find(
+																			(
+																				p,
+																			) =>
+																				p.interval ===
+																				"month",
+																		);
+																	const annualPrice =
+																		group.prices.find(
+																			(
+																				p,
+																			) =>
+																				p.interval ===
+																				"year",
+																		);
+																	const selectedPrice =
+																		selectedBillingInterval ===
+																		"month"
+																			? monthlyPrice
+																			: annualPrice;
 
-																{/* Additional Benefits Section */}
-																<div className="space-y-3 pt-4 border-t border-[rgba(55,50,47,0.12)]">
-																	{[
-																		"Benefit 1",
-																		"Benefit 2",
-																		"Benefit 3",
-																	].map((benefit) => (
-																		<div key={benefit} className="flex items-center gap-3">
-																			<Gem className="h-4 w-4 shrink-0 text-[#6f9f6b]" />
-																			<span className="text-sm text-[#37322F]">{benefit}</span>
-																		</div>
-																	))}
-																</div>
-																{/* Billing Interval Toggle */}
-																{monthlyPrice && annualPrice && (
-																	<div className="flex items-center gap-2 p-1 bg-gray-100 rounded-lg">
-																		<button
-																			type="button"
-																			onClick={() => setSelectedBillingInterval("year")}
-																			className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors relative ${
-																				selectedBillingInterval === "year"
-																					? "bg-white text-[#37322F] shadow-sm"
-																					: "text-[#605A57] hover:text-[#37322F]"
-																			}`}
+																	// Annual discount calculation – product-agnostic; works with any Stripe monthly/annual prices
+																	const monthlyAnnualCost =
+																		monthlyPrice?.amount
+																			? monthlyPrice.amount *
+																				12
+																			: 0;
+																	const annualCost =
+																		annualPrice?.amount ||
+																		0;
+																	const savings =
+																		monthlyAnnualCost -
+																		annualCost;
+																	const savingsFormatted =
+																		savings >
+																			0 &&
+																		annualPrice?.currency
+																			? new Intl.NumberFormat(
+																					"en-US",
+																					{
+																						style: "currency",
+																						currency:
+																							annualPrice.currency.toUpperCase(),
+																						minimumFractionDigits: 0,
+																						maximumFractionDigits: 0,
+																					},
+																				).format(
+																					Math.floor(
+																						savings /
+																							100,
+																					),
+																				)
+																			: null;
+																	const savingsPercentage =
+																		monthlyAnnualCost >
+																			0 &&
+																		savings >
+																			0
+																			? Math.ceil(
+																					(savings /
+																						monthlyAnnualCost) *
+																						100,
+																				)
+																			: null;
+
+																	return (
+																		<Card
+																			key={
+																				group.id
+																			}
+																			className="hover:shadow-md transition-shadow"
 																		>
-																			<div className="flex flex-col items-center gap-1">
-																				<span>Billed Annually</span>
-																				{savingsPercentage && (
-																					<Badge className="bg-green-600 text-white text-xs border-0 px-2 py-0.5">
-																						Saving {savingsPercentage}%
-																					</Badge>
+																			<CardHeader>
+																				<CardTitle className="text-lg">
+																					{
+																						group.name
+																					}
+																				</CardTitle>
+																				{group.description && (
+																					<p className="text-sm text-[#605A57]">
+																						{
+																							group.description
+																						}
+																					</p>
 																				)}
-																			</div>
-																		</button>
-																		<button
-																			type="button"
-																			onClick={() => setSelectedBillingInterval("month")}
-																			className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-																				selectedBillingInterval === "month"
-																					? "bg-white text-[#37322F] shadow-sm"
-																					: "text-[#605A57] hover:text-[#37322F]"
-																			}`}
-																		>
-																			Billed Monthly
-																		</button>
-																	</div>
-																)}
-
-																<div>
-																	<div className="text-lg font-bold text-[#37322F]">
-																		{selectedPrice
-																			? selectedBillingInterval === "year"
-																				? new Intl.NumberFormat("en-US", {
-																						style: "currency",
-																						currency: (selectedPrice.currency || "usd").toUpperCase(),
-																						minimumFractionDigits: 0,
-																						maximumFractionDigits: 0,
-																					}).format(Math.floor((selectedPrice.amount || 0) / 1200))
-																				: new Intl.NumberFormat("en-US", {
-																						style: "currency",
-																						currency: (selectedPrice.currency || "usd").toUpperCase(),
-																						minimumFractionDigits: 0,
-																						maximumFractionDigits: 0,
-																					}).format(Math.floor((selectedPrice.amount || 0) / 100))
-																			: "$249"
-																		}
-																	</div>
-																	{selectedBillingInterval === "month" && (
-																		<div className="text-xs text-[#605A57] mt-0.5">
-																			per month
-																		</div>
-																	)}
-																	{selectedBillingInterval === "year" && (
-																		<>
-																			<div className="text-xs text-[#605A57] mt-0.5">
-																				per month
-																			</div>
-																			{savingsFormatted && (
-																				<div className="text-xs text-green-600 font-medium mt-1">
-																					Save {savingsFormatted} annually
+																			</CardHeader>
+																			<CardContent className="space-y-4">
+																				{/* Features List */}
+																				<div className="space-y-3">
+																					{[
+																						"Feature 1",
+																						"Feature 2",
+																						"Feature 3",
+																						"Feature 4",
+																						"Feature 5",
+																					].map(
+																						(
+																							feature,
+																						) => (
+																							<div
+																								key={
+																									feature
+																								}
+																								className="flex items-center gap-3"
+																							>
+																								<div
+																									className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
+																									style={{
+																										backgroundColor:
+																											"#6f9f6b",
+																									}}
+																								>
+																									<Check className="h-4 w-4 text-white" />
+																								</div>
+																								<span className="text-sm text-[#37322F]">
+																									{
+																										feature
+																									}
+																								</span>
+																							</div>
+																						),
+																					)}
 																				</div>
-																			)}
-																		</>
-																	)}
-																</div>
-																<Button
-																	onClick={() =>
-																		selectedPrice?.priceId &&
-																		handleSelectPlan(selectedPrice.priceId)
-																	}
-																	disabled={
-																		!selectedPrice?.priceId ||
-																		isCreatingCheckout ||
-																		subscriptionStatus?.status === "active"
-																	}
-																	className="w-full bg-[#37322F] hover:bg-[#37322F]/90 text-white"
-																>
-																	{isCreatingCheckout ? (
-																		<>
-																			<Loader2 className="h-4 w-4 mr-2 animate-spin" />
-																			Processing...
-																		</>
-																	) : subscriptionStatus?.status === "active" ? (
-																		"Current Plan"
-																	) : (
-																		"Select Plan"
-																	)}
-																</Button>
-															</CardContent>
-														</Card>
+
+																				{/* Additional Benefits Section */}
+																				<div className="space-y-3 pt-4 border-t border-[rgba(55,50,47,0.12)]">
+																					{[
+																						"Benefit 1",
+																						"Benefit 2",
+																						"Benefit 3",
+																					].map(
+																						(
+																							benefit,
+																						) => (
+																							<div
+																								key={
+																									benefit
+																								}
+																								className="flex items-center gap-3"
+																							>
+																								<Gem className="h-4 w-4 shrink-0 text-[#6f9f6b]" />
+																								<span className="text-sm text-[#37322F]">
+																									{
+																										benefit
+																									}
+																								</span>
+																							</div>
+																						),
+																					)}
+																				</div>
+																				{/* Billing Interval Toggle */}
+																				{monthlyPrice &&
+																					annualPrice && (
+																						<div className="flex items-center gap-2 p-1 bg-gray-100 rounded-lg">
+																							<button
+																								type="button"
+																								onClick={() =>
+																									setSelectedBillingInterval(
+																										"year",
+																									)
+																								}
+																								className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors relative ${
+																									selectedBillingInterval ===
+																									"year"
+																										? "bg-white text-[#37322F] shadow-sm"
+																										: "text-[#605A57] hover:text-[#37322F]"
+																								}`}
+																							>
+																								<div className="flex flex-col items-center gap-1">
+																									<span>
+																										Billed
+																										Annually
+																									</span>
+																									{savingsPercentage && (
+																										<Badge className="bg-green-600 text-white text-xs border-0 px-2 py-0.5">
+																											Saving{" "}
+																											{
+																												savingsPercentage
+																											}
+
+																											%
+																										</Badge>
+																									)}
+																								</div>
+																							</button>
+																							<button
+																								type="button"
+																								onClick={() =>
+																									setSelectedBillingInterval(
+																										"month",
+																									)
+																								}
+																								className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+																									selectedBillingInterval ===
+																									"month"
+																										? "bg-white text-[#37322F] shadow-sm"
+																										: "text-[#605A57] hover:text-[#37322F]"
+																								}`}
+																							>
+																								Billed
+																								Monthly
+																							</button>
+																						</div>
+																					)}
+
+																				<div>
+																					<div className="text-lg font-bold text-[#37322F]">
+																						{selectedPrice
+																							? selectedBillingInterval ===
+																								"year"
+																								? new Intl.NumberFormat(
+																										"en-US",
+																										{
+																											style: "currency",
+																											currency:
+																												(
+																													selectedPrice.currency ||
+																													"usd"
+																												).toUpperCase(),
+																											minimumFractionDigits: 0,
+																											maximumFractionDigits: 0,
+																										},
+																									).format(
+																										Math.floor(
+																											(selectedPrice.amount ||
+																												0) /
+																												1200,
+																										),
+																									)
+																								: new Intl.NumberFormat(
+																										"en-US",
+																										{
+																											style: "currency",
+																											currency:
+																												(
+																													selectedPrice.currency ||
+																													"usd"
+																												).toUpperCase(),
+																											minimumFractionDigits: 0,
+																											maximumFractionDigits: 0,
+																										},
+																									).format(
+																										Math.floor(
+																											(selectedPrice.amount ||
+																												0) /
+																												100,
+																										),
+																									)
+																							: "$249"}
+																					</div>
+																					{selectedBillingInterval ===
+																						"month" && (
+																						<div className="text-xs text-[#605A57] mt-0.5">
+																							per
+																							month
+																						</div>
+																					)}
+																					{selectedBillingInterval ===
+																						"year" && (
+																						<>
+																							<div className="text-xs text-[#605A57] mt-0.5">
+																								per
+																								month
+																							</div>
+																							{savingsFormatted && (
+																								<div className="text-xs text-green-600 font-medium mt-1">
+																									Save{" "}
+																									{
+																										savingsFormatted
+																									}{" "}
+																									annually
+																								</div>
+																							)}
+																						</>
+																					)}
+																				</div>
+																				<Button
+																					onClick={() =>
+																						selectedPrice?.priceId &&
+																						handleSelectPlan(
+																							selectedPrice.priceId,
+																						)
+																					}
+																					disabled={
+																						!selectedPrice?.priceId ||
+																						isCreatingCheckout ||
+																						subscriptionStatus?.status ===
+																							"active"
+																					}
+																					className="w-full bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+																				>
+																					{isCreatingCheckout ? (
+																						<>
+																							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+																							Processing...
+																						</>
+																					) : subscriptionStatus?.status ===
+																					  "active" ? (
+																						"Current Plan"
+																					) : (
+																						"Select Plan"
+																					)}
+																				</Button>
+																			</CardContent>
+																		</Card>
+																	);
+																},
+															)}
+														</div>
 													);
-												})}
-											</div>
-										);
-									})()}
-								</div>
-								);
-							})()}
+												})()
+											)}
+										</div>
+									);
+								})()}
 						</CardContent>
 					</Card>
 
 					{/* Upgrade Confirmation Dialog */}
-					<AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+					<AlertDialog
+						open={showUpgradeDialog}
+						onOpenChange={setShowUpgradeDialog}
+					>
 						<AlertDialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
 							{/* Logo placeholder */}
 							<div className="flex justify-center mb-4">
@@ -1203,31 +1618,59 @@ export default function SettingsPage() {
 									className="h-8 w-32 sm:h-9 sm:w-36 bg-[rgba(55,50,47,0.08)] rounded border border-[rgba(55,50,47,0.12)] flex items-center justify-center"
 									aria-hidden
 								>
-									<span className="text-[10px] text-[#6b7280] text-center">144×36</span>
+									<span className="text-[10px] text-[#6b7280] text-center">
+										144×36
+									</span>
 								</div>
 							</div>
 							<AlertDialogHeader>
-								<AlertDialogTitle>Upgrade to Annual Plan</AlertDialogTitle>
+								<AlertDialogTitle>
+									Upgrade to Annual Plan
+								</AlertDialogTitle>
 								<AlertDialogDescription>
 									{(() => {
-										const dialogMonthlyPrice = products.find(
-											(p) => p.id === STRIPE_PRODUCT_ID && p.priceId === STRIPE_MONTHLY_PRICE_ID
-										);
+										const dialogMonthlyPrice =
+											products.find(
+												(p) =>
+													p.id ===
+														STRIPE_PRODUCT_ID &&
+													p.priceId ===
+														STRIPE_MONTHLY_PRICE_ID,
+											);
 										const dialogAnnualPrice = products.find(
-											(p) => p.id === STRIPE_PRODUCT_ID && p.priceId === STRIPE_ANNUAL_PRICE_ID
+											(p) =>
+												p.id === STRIPE_PRODUCT_ID &&
+												p.priceId ===
+													STRIPE_ANNUAL_PRICE_ID,
 										);
-										const dialogMonthlyAnnualCost = dialogMonthlyPrice?.amount ? dialogMonthlyPrice.amount * 12 : 0;
-										const dialogAnnualCost = dialogAnnualPrice?.amount || 0;
-										const dialogSavings = dialogMonthlyAnnualCost - dialogAnnualCost;
-										const dialogSavingsFormatted = dialogSavings > 0 && dialogAnnualPrice?.currency
-											? new Intl.NumberFormat("en-US", {
-													style: "currency",
-													currency: dialogAnnualPrice.currency.toUpperCase(),
-													minimumFractionDigits: 0,
-													maximumFractionDigits: 0,
-												}).format(Math.floor(dialogSavings / 100))
-											: null;
-										
+										const dialogMonthlyAnnualCost =
+											dialogMonthlyPrice?.amount
+												? dialogMonthlyPrice.amount * 12
+												: 0;
+										const dialogAnnualCost =
+											dialogAnnualPrice?.amount || 0;
+										const dialogSavings =
+											dialogMonthlyAnnualCost -
+											dialogAnnualCost;
+										const dialogSavingsFormatted =
+											dialogSavings > 0 &&
+											dialogAnnualPrice?.currency
+												? new Intl.NumberFormat(
+														"en-US",
+														{
+															style: "currency",
+															currency:
+																dialogAnnualPrice.currency.toUpperCase(),
+															minimumFractionDigits: 0,
+															maximumFractionDigits: 0,
+														},
+													).format(
+														Math.floor(
+															dialogSavings / 100,
+														),
+													)
+												: null;
+
 										return dialogSavingsFormatted
 											? `Upgrade your subscription to the annual plan and save ${dialogSavingsFormatted} per year. You'll be charged a prorated amount based on the time remaining in your current billing period.`
 											: "Upgrade your subscription to the annual plan. You'll be charged a prorated amount based on the time remaining in your current billing period.";
@@ -1238,13 +1681,17 @@ export default function SettingsPage() {
 								{proratedAmount && (
 									<div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
 										<p className="text-sm text-blue-800 mb-1">
-											<strong>Amount to be charged:</strong>
+											<strong>
+												Amount to be charged:
+											</strong>
 										</p>
 										<p className="text-2xl font-bold text-blue-900">
 											{proratedAmount.formatted}
 										</p>
 										<p className="text-xs text-blue-700 mt-1">
-											This is the prorated amount after crediting your remaining monthly subscription.
+											This is the prorated amount after
+											crediting your remaining monthly
+											subscription.
 										</p>
 									</div>
 								)}
@@ -1275,4 +1722,3 @@ export default function SettingsPage() {
 		</div>
 	);
 }
-

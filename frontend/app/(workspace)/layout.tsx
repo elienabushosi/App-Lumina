@@ -9,6 +9,7 @@ import {
 	removeAuthToken,
 	getCurrentUser,
 } from "@/lib/auth";
+import { config } from "@/lib/config";
 import {
 	Sidebar,
 	SidebarContent,
@@ -115,6 +116,13 @@ export default function WorkspaceLayout({
 			Type: string | null;
 		} | null;
 	} | null>(null);
+
+	const [ringCentralConnected, setRingCentralConnected] = useState<
+		boolean | null
+	>(null);
+	const [agencyZoomConnected, setAgencyZoomConnected] = useState<
+		boolean | null
+	>(null);
 	// When NEXT_PUBLIC_BYPASS_AUTH=1, skip real auth (local dev or Vercel demo)
 	const isBypassAuth = process.env.NEXT_PUBLIC_BYPASS_AUTH === "1";
 	const pageTitle = getPageTitle(pathname);
@@ -171,6 +179,44 @@ export default function WorkspaceLayout({
 		checkAuth();
 	}, [router, isBypassAuth]);
 
+	// Poll connection status for the sidebar indicators.
+	useEffect(() => {
+		if (!isAuthenticated) return;
+
+		let cancelled = false;
+		async function loadStatuses() {
+			try {
+				const [ringRes, agencyRes] = await Promise.all([
+					fetch(`${config.apiUrl}/api/ringcentral/status`, {
+						cache: "no-store",
+					}),
+					fetch(`${config.apiUrl}/api/agencyzoom/status`, {
+						cache: "no-store",
+					}),
+				]);
+
+				const ringJson = await ringRes.json().catch(() => ({}));
+				const agencyJson = await agencyRes.json().catch(() => ({}));
+
+				if (cancelled) return;
+				setRingCentralConnected(!!ringJson.connected);
+				setAgencyZoomConnected(!!agencyJson.connected);
+			} catch {
+				if (cancelled) return;
+				// If either request fails, mark as disconnected.
+				setRingCentralConnected(false);
+				setAgencyZoomConnected(false);
+			}
+		}
+
+		loadStatuses();
+		const t = window.setInterval(loadStatuses, 30_000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(t);
+		};
+	}, [isAuthenticated]);
+
 	// Show loading state while checking authentication
 	if (isChecking || !isAuthenticated) {
 		return (
@@ -207,7 +253,9 @@ export default function WorkspaceLayout({
 								<SidebarMenuItem>
 									<SidebarMenuButton
 										tooltip="Research Agent - Demo"
-										isActive={pathname === "/research-agent"}
+										isActive={
+											pathname === "/research-agent"
+										}
 										asChild
 									>
 										<Link href="/research-agent">
@@ -223,6 +271,76 @@ export default function WorkspaceLayout({
 				</SidebarContent>
 				<SidebarFooter>
 					<SidebarMenu>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								tooltip={`RingCentral: ${
+									ringCentralConnected
+										? "Connected"
+										: "Disconnected"
+								}`}
+								asChild
+								isActive={pathname === "/settings"}
+							>
+								<Link href="/settings" className="w-full">
+									<img
+										src="/RingCentral_logo.png"
+										alt="RingCentral"
+										className="h-5 w-auto object-contain shrink-0"
+									/>
+									<span
+										className={`h-2 w-2 rounded-full ${
+											ringCentralConnected === null
+												? "bg-gray-400"
+												: ringCentralConnected
+													? "bg-green-500"
+													: "bg-red-500"
+										}`}
+									/>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								tooltip={`AgencyZoom: ${
+									agencyZoomConnected
+										? "Connected"
+										: "Disconnected"
+								}`}
+								asChild
+								isActive={pathname === "/settings"}
+							>
+								<Link href="/settings" className="w-full">
+									<img
+										src="/AgencyZoom-removebg-preview.png"
+										alt="AgencyZoom"
+										className="h-5 w-auto object-contain shrink-0"
+									/>
+									<span
+										className={`h-2 w-2 rounded-full ${
+											agencyZoomConnected === null
+												? "bg-gray-400"
+												: agencyZoomConnected
+													? "bg-green-500"
+													: "bg-red-500"
+										}`}
+									/>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								tooltip="Settings"
+								isActive={pathname === "/settings"}
+								asChild
+							>
+								<Link href="/settings">
+									<Settings className="size-4" />
+									<span>Settings</span>
+								</Link>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
 						{/* User info section */}
 						{userData && (
 							<SidebarMenuItem>
