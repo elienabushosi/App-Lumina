@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
 		const { data, error } = await db
 			.from("call_recordings")
 			.select(
-				"id, id_organization, ringcentral_call_id, from_number, to_number, start_time, duration_sec, status, lead_status"
+				"id, id_organization, ringcentral_call_id, from_number, to_number, from_name, to_name, start_time, duration_sec, status, lead_status"
 			)
 			.order("start_time", { ascending: false, nullsFirst: false })
 			.limit(limit);
@@ -42,7 +42,7 @@ router.get("/:id", async (req, res) => {
 		const { data, error } = await db
 			.from("call_recordings")
 			.select(
-				"id, id_organization, ringcentral_call_id, from_number, to_number, start_time, duration_sec, status, lead_status, transcript, lead_payload"
+				"id, id_organization, ringcentral_call_id, from_number, to_number, from_name, to_name, start_time, duration_sec, status, lead_status, transcript, lead_payload"
 			)
 			.eq("id", id)
 			.single();

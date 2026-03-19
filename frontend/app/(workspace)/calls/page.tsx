@@ -15,6 +15,8 @@ type CallRow = {
 	ringcentral_call_id: string;
 	from_number: string | null;
 	to_number: string | null;
+		from_name: string | null;
+		to_name: string | null;
 	start_time: string | null;
 	duration_sec: number | null;
 	status: string;
@@ -80,8 +82,22 @@ export default async function CallsPage() {
 													: "—"}
 											</Link>
 										</TableCell>
-										<TableCell>{call.from_number || "—"}</TableCell>
-										<TableCell>{call.to_number || "—"}</TableCell>
+										<TableCell>
+											<div className="flex flex-col">
+												<span>{call.from_name || "—"}</span>
+												<span className="text-xs text-[#605A57]">
+													{call.from_number || "—"}
+												</span>
+											</div>
+										</TableCell>
+										<TableCell>
+											<div className="flex flex-col">
+												<span>{call.to_name || "—"}</span>
+												<span className="text-xs text-[#605A57]">
+													{call.to_number || "—"}
+												</span>
+											</div>
+										</TableCell>
 										<TableCell>{call.duration_sec ?? "—"}</TableCell>
 										<TableCell className="capitalize">
 											{call.status ?? "—"}

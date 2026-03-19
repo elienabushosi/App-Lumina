@@ -15,6 +15,8 @@ const POLL_INTERVAL_MS = 30 * 1000;
 const DATE_FROM_MINUTES = 30;
 
 const processedCallIds = new Set();
+let pollerStopped = false;
+let refreshTokenExpiredLogged = false;
 
 function dateFrom() {
 	const d = new Date(Date.now() - DATE_FROM_MINUTES * 60 * 1000);
@@ -41,6 +43,7 @@ function formatEstTime(isoString) {
 }
 
 async function poll() {
+	if (pollerStopped) return;
 	const tokens = await getRingCentralTokens(STATE_KEY);
 	if (!tokens?.access_token) {
 		return;
@@ -55,6 +58,40 @@ async function poll() {
 		refresh_token: tokens.refresh_token,
 		expire_time: tokens.expire_time,
 	};
+
+	function pickPartyName(party) {
+		if (!party || typeof party !== "object") return null;
+
+		const candidates = [
+			party.name,
+			party.displayName,
+			party.contactName,
+			party.callerName,
+			party.userName,
+			party.partyName,
+			party?.contact?.name,
+			party?.party?.name,
+			party?.user?.name,
+		];
+
+		for (const c of candidates) {
+			if (typeof c === "string" && c.trim() !== "") return c;
+		}
+
+		// If name is an object (rare but possible), try displayName fields.
+		if (typeof party.name === "object" && party.name) {
+			const nested = [
+				party.name.displayName,
+				party.name.value,
+				party.name.name,
+			];
+			for (const c of nested) {
+				if (typeof c === "string" && c.trim() !== "") return c;
+			}
+		}
+
+		return null;
+	}
 
 	async function persistUpdatedTokensIfNeeded() {
 		try {
@@ -139,6 +176,7 @@ async function poll() {
 		}
 
 		let newCount = 0;
+		let loggedMissingNames = false;
 		for (const record of allRecords) {
 			const id = record.id;
 			const recordingContentUri = record.recording?.contentUri ?? null;
@@ -154,11 +192,23 @@ async function poll() {
 
 			const from = record.from?.phoneNumber ?? record.from?.extensionNumber ?? record.from?.name ?? "—";
 			const to = record.to?.phoneNumber ?? record.to?.extensionNumber ?? record.to?.name ?? "—";
+			const fromName = pickPartyName(record.from);
+			const toName = pickPartyName(record.to);
 			const startTime = record.startTime ?? "—";
 			const duration = record.duration ?? 0;
 			const type = record.type ?? "—";
 			const result = record.result ?? "—";
 			const direction = record.direction ?? "—";
+			const directionLower =
+				typeof direction === "string" ? direction.toLowerCase() : "";
+			// For inbound calls, the caller is RingCentral's `to`, and the receiver is `from`.
+			// For outbound calls, caller is `from` and receiver is `to`.
+			const isInbound = directionLower === "inbound";
+
+			const callerNumber = isInbound ? to : from;
+			const receiverNumber = isInbound ? from : to;
+			const callerName = isInbound ? toName : fromName;
+			const receiverName = isInbound ? fromName : toName;
 
 			console.log("[CallLog] Ended call:", {
 				id,
@@ -175,6 +225,16 @@ async function poll() {
 
 			if (hasRecording && !existingRecordingIds.has(id)) {
 				try {
+					if (!fromName && !toName && !loggedMissingNames) {
+						loggedMissingNames = true;
+						console.log("[CallLog] Missing from/to names; RingCentral party fields:", {
+							fromKeys: Object.keys(record.from ?? {}),
+							toKeys: Object.keys(record.to ?? {}),
+							fromSample: record.from ?? null,
+							toSample: record.to ?? null,
+						});
+					}
+
 					const db = getSupabase();
 					const { data: inserted, error } = await db
 						.from("call_recordings")
@@ -182,8 +242,10 @@ async function poll() {
 							id_organization: STATE_KEY,
 							ringcentral_call_id: id,
 							recording_content_uri: recordingContentUri,
-							from_number: from !== "—" ? from : null,
-							to_number: to !== "—" ? to : null,
+							from_number: callerNumber !== "—" ? callerNumber : null,
+							to_number: receiverNumber !== "—" ? receiverNumber : null,
+							from_name: callerName,
+							to_name: receiverName,
 							start_time: record.startTime || null,
 							duration_sec: duration || null,
 							status: "pending_transcription",
@@ -198,6 +260,20 @@ async function poll() {
 					}
 				} catch (e) {
 					console.error("[CallLog] Insert recording error:", e.message);
+				}
+			} else if (hasRecording && existingRecordingIds.has(id)) {
+				// Backfill names for already-inserted rows so UI updates immediately.
+				try {
+					const db = getSupabase();
+					await db
+						.from("call_recordings")
+						.update({
+							from_name: callerName ?? null,
+							to_name: receiverName ?? null,
+						})
+						.eq("ringcentral_call_id", id);
+				} catch (e) {
+					console.error("[CallLog] Backfill names error:", e.message);
 				}
 			}
 		}
@@ -222,7 +298,26 @@ async function poll() {
 		// Persist tokens after polling so any refresh-token rotation is not lost.
 		await persistUpdatedTokensIfNeeded();
 	} catch (e) {
-		console.error("[CallLog poll] API error:", e.message);
+		// If RingCentral refreshed/rotated tokens before failing, persist them.
+		try {
+			await persistUpdatedTokensIfNeeded();
+		} catch {
+			// ignore
+		}
+
+		const msg = e?.message || "";
+		if (/refresh token has expired/i.test(msg)) {
+			if (!refreshTokenExpiredLogged) {
+				console.error(
+					"[CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
+				);
+				refreshTokenExpiredLogged = true;
+			}
+			pollerStopped = true;
+			return;
+		}
+
+		console.error("[CallLog poll] API error:", msg);
 	}
 }
 
