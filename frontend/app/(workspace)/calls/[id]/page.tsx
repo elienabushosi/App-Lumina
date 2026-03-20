@@ -10,6 +10,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { CallActions } from "@/components/call-actions";
+import { LeadPayloadPanel } from "@/components/lead-payload-panel";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 import { formatDisplayPhone } from "@/lib/format-phone";
 import {
@@ -22,8 +23,10 @@ import {
 	CalendarDays,
 	CircleDollarSign,
 	Clock4,
+	PhoneCall,
 	PhoneIncoming,
 	PhoneOutgoing,
+	Timer,
 } from "lucide-react";
 
 type CallDetail = {
@@ -64,116 +67,132 @@ export default async function CallDetailPage({
 	return (
 		<div className="p-8">
 			<div className="max-w-5xl mx-auto space-y-6">
-				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-2xl font-semibold text-[#37322F]">
-							Call Details
-						</h1>
-						<p className="text-sm text-[#605A57] mt-1">
-							RingCentral call ID: {call.ringcentral_call_id}
-						</p>
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+					<div className="space-y-3 min-w-0">
+						<Link
+							href="/calls"
+							className="text-sm text-[#37322F] hover:underline inline-block"
+						>
+							← Back to Call Listener
+						</Link>
+						<div>
+							<h1 className="text-2xl font-semibold text-[#37322F]">
+								Call Details
+							</h1>
+							<p className="text-sm text-[#605A57] mt-1">
+								RingCentral call ID: {call.ringcentral_call_id}
+							</p>
+						</div>
 					</div>
-					<div className="flex items-center gap-4">
+					<div className="shrink-0">
 						<CallActions
 							callId={call.id}
 							initialLeadStatus={call.lead_status}
 							hasTranscript={call.status === "transcribed"}
 							hasLeadPayload={!!call.lead_payload?.lead}
 						/>
-						<Link
-							href="/calls"
-							className="text-sm text-[#37322F] hover:underline"
-						>
-							← Back to Call Listener
-						</Link>
 					</div>
 				</div>
 
 				<div className="grid gap-4 md:grid-cols-2">
-					<div className="rounded-lg border border-[#E0DEDB] bg-white p-4 shadow-sm">
-						<h2 className="text-sm font-semibold text-[#37322F] mb-3">
-							Call Info
-						</h2>
-						<Table>
-							<TableBody>
-								<TableRow>
-									<TableHead>
-										<PhoneOutgoing className="h-4 w-4 inline-block mr-2" />
-										From
-									</TableHead>
-									<TableCell>
-										<div className="flex flex-col">
-											<span>{call.from_name || "—"}</span>
-											<span className="text-xs text-[#605A57]">
-												{formatDisplayPhone(call.from_number)}
+					<div className="rounded-lg border border-[#E0DEDB] bg-white shadow-sm md:col-span-2 overflow-hidden">
+						<div className="bg-[#F4F3F1] border-b border-[#E0DEDB] px-4 py-3">
+							<h2 className="text-sm font-semibold text-[#37322F]">Call Info</h2>
+						</div>
+
+						<div className="p-4 overflow-x-auto">
+							<Table>
+								<TableHeader>
+									<TableRow className="bg-[#F9F8F6] hover:bg-[#F9F8F6] border-b border-[#E0DEDB]">
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<PhoneOutgoing className="h-4 w-4 shrink-0 text-[#605A57]" />
+												From
 											</span>
-										</div>
-									</TableCell>
-								</TableRow>
-								<TableRow>
-									<TableHead>
-										<PhoneIncoming className="h-4 w-4 inline-block mr-2" />
-										To
-									</TableHead>
-									<TableCell>
-										<div className="flex flex-col">
-											<span>{call.to_name || "—"}</span>
-											<span className="text-xs text-[#605A57]">
-												{formatDisplayPhone(call.to_number)}
+										</TableHead>
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<PhoneIncoming className="h-4 w-4 shrink-0 text-[#605A57]" />
+												To
 											</span>
-										</div>
-									</TableCell>
-								</TableRow>
-								<TableRow>
-									<TableHead>
-										<CalendarDays className="h-4 w-4 inline-block mr-2" />
-										Date
-									</TableHead>
-									<TableCell>{formatCallDate(call.start_time)}</TableCell>
-								</TableRow>
-								<TableRow>
-									<TableHead>
-										<Clock4 className="h-4 w-4 inline-block mr-2" />
-										Time
-									</TableHead>
-									<TableCell>{formatCallTime(call.start_time)}</TableCell>
-								</TableRow>
-								<TableRow>
-									<TableHead>Duration</TableHead>
-									<TableCell>
-										{formatDuration(call.duration_sec)}
-									</TableCell>
-								</TableRow>
-								<TableRow>
-									<TableHead>Call Status</TableHead>
-									<TableCell className="capitalize">
-										{call.status ?? "—"}
-									</TableCell>
-								</TableRow>
-								<TableRow>
-									<TableHead>
-										<CircleDollarSign className="h-4 w-4 inline-block mr-2" />
-										Lead Status
-									</TableHead>
-									<TableCell>
-										<LeadStatusBadge status={call.lead_status} />
-									</TableCell>
-								</TableRow>
-							</TableBody>
-						</Table>
+										</TableHead>
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<CalendarDays className="h-4 w-4 shrink-0 text-[#605A57]" />
+												Date
+											</span>
+										</TableHead>
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<Clock4 className="h-4 w-4 shrink-0 text-[#605A57]" />
+												Time
+											</span>
+										</TableHead>
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<Timer className="h-4 w-4 shrink-0 text-[#605A57]" />
+												Duration
+											</span>
+										</TableHead>
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<PhoneCall className="h-4 w-4 shrink-0 text-[#605A57]" />
+												Call Status
+											</span>
+										</TableHead>
+										<TableHead className="text-xs font-semibold text-[#37322F] align-bottom whitespace-nowrap">
+											<span className="inline-flex items-center gap-1.5">
+												<CircleDollarSign className="h-4 w-4 shrink-0 text-[#605A57]" />
+												Lead Status
+											</span>
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									<TableRow className="hover:bg-transparent border-0">
+										<TableCell className="text-sm text-[#37322F] align-top min-w-[140px]">
+											<div className="flex flex-col gap-0.5">
+												<span className="font-medium">
+													{call.from_name || "—"}
+												</span>
+												<span className="text-xs text-[#605A57]">
+													{formatDisplayPhone(call.from_number)}
+												</span>
+											</div>
+										</TableCell>
+										<TableCell className="text-sm text-[#37322F] align-top min-w-[140px]">
+											<div className="flex flex-col gap-0.5">
+												<span className="font-medium">
+													{call.to_name || "—"}
+												</span>
+												<span className="text-xs text-[#605A57]">
+													{formatDisplayPhone(call.to_number)}
+												</span>
+											</div>
+										</TableCell>
+										<TableCell className="text-sm text-[#37322F] align-top whitespace-nowrap">
+											{formatCallDate(call.start_time)}
+										</TableCell>
+										<TableCell className="text-sm text-[#37322F] align-top whitespace-nowrap">
+											{formatCallTime(call.start_time)}
+										</TableCell>
+										<TableCell className="text-sm text-[#37322F] align-top whitespace-nowrap">
+											{formatDuration(call.duration_sec)}
+										</TableCell>
+										<TableCell className="text-sm text-[#37322F] align-top capitalize whitespace-nowrap">
+											{call.status ?? "—"}
+										</TableCell>
+										<TableCell className="align-top">
+											<LeadStatusBadge status={call.lead_status} />
+										</TableCell>
+									</TableRow>
+								</TableBody>
+							</Table>
+						</div>
 					</div>
 
-					<div className="rounded-lg border border-[#E0DEDB] bg-white p-4 shadow-sm">
-						<h2 className="text-sm font-semibold text-[#37322F] mb-3">
-							Lead Payload (JSON)
-						</h2>
-						<div className="text-xs font-mono text-[#111827] bg-[#F9FAFB] border border-[#E5E7EB] rounded-md p-3 max-h-[360px] overflow-auto">
-							<pre className="whitespace-pre-wrap break-all">
-								{call.lead_payload
-									? JSON.stringify(call.lead_payload, null, 2)
-									: "// No lead payload yet"}
-							</pre>
-						</div>
+					<div className="md:col-span-2">
+						<LeadPayloadPanel leadPayload={call.lead_payload} />
 					</div>
 				</div>
 
@@ -190,4 +209,3 @@ export default async function CallDetailPage({
 		</div>
 	);
 }
-
