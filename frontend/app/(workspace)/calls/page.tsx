@@ -14,6 +14,15 @@ import {
 	formatCallTime,
 	formatDuration,
 } from "@/lib/format-call";
+import {
+	CalendarDays,
+	CircleDollarSign,
+	Clock4,
+	PhoneCall,
+	PhoneIncoming,
+	PhoneOutgoing,
+	Timer,
+} from "lucide-react";
 
 type CallRow = {
 	id: string;
@@ -60,13 +69,34 @@ export default async function CallsPage() {
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead>From</TableHead>
-								<TableHead>To</TableHead>
-								<TableHead>Date</TableHead>
-								<TableHead>Time</TableHead>
-								<TableHead>Duration</TableHead>
-								<TableHead>Call Status</TableHead>
-								<TableHead>Lead Status</TableHead>
+								<TableHead>
+									<PhoneOutgoing className="h-4 w-4 inline-block mr-2" />
+									From
+								</TableHead>
+								<TableHead>
+									<PhoneIncoming className="h-4 w-4 inline-block mr-2" />
+									To
+								</TableHead>
+								<TableHead>
+									<CalendarDays className="h-4 w-4 inline-block mr-2" />
+									Date
+								</TableHead>
+								<TableHead>
+									<Clock4 className="h-4 w-4 inline-block mr-2" />
+									Time
+								</TableHead>
+								<TableHead>
+									<Timer className="h-4 w-4 inline-block mr-2" />
+									Duration
+								</TableHead>
+								<TableHead>
+									<PhoneCall className="h-4 w-4 inline-block mr-2" />
+									Call Status
+								</TableHead>
+								<TableHead>
+									<CircleDollarSign className="h-4 w-4 inline-block mr-2" />
+									Lead Status
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>

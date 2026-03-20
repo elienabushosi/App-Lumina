@@ -93,6 +93,113 @@ async function poll() {
 		return null;
 	}
 
+	/** In-memory for one poll — avoids duplicate GET /extension/{id} calls. */
+	const extensionNameCache = new Map();
+
+	async function getExtensionDisplayName(extensionId) {
+		if (extensionId == null || extensionId === "") return null;
+		const key = String(extensionId);
+		if (extensionNameCache.has(key)) return extensionNameCache.get(key);
+		try {
+			const resp = await platform.get(
+				`/restapi/v1.0/account/~/extension/${encodeURIComponent(key)}`
+			);
+			const ext = await resp.json();
+			const fromContact = [ext.contact?.firstName, ext.contact?.lastName]
+				.filter(Boolean)
+				.join(" ")
+				.trim();
+			const label =
+				(typeof ext.name === "string" && ext.name.trim()) ||
+				fromContact ||
+				(ext.extensionNumber != null && String(ext.extensionNumber).trim() !== ""
+					? `Extension ${String(ext.extensionNumber).trim()}`
+					: null);
+			if (label) extensionNameCache.set(key, label);
+			return label || null;
+		} catch (e) {
+			console.error("[CallLog] Extension lookup failed:", key, e.message);
+			return null;
+		}
+	}
+
+	/**
+	 * Detailed call log legs often carry the answering extension / display names that
+	 * the top-level `to` party omits (company DID has no CNAM in `to.name`).
+	 */
+	function pickNameFromDetailedLegs(record) {
+		const legs = record.legs;
+		if (!Array.isArray(legs) || legs.length === 0) return null;
+
+		const acceptFirst = [];
+		const rest = [];
+		for (const leg of legs) {
+			if (String(leg.legType || "").toLowerCase() === "accept") {
+				acceptFirst.push(leg);
+			} else {
+				rest.push(leg);
+			}
+		}
+		const ordered = acceptFirst.length ? [...acceptFirst, ...rest] : legs;
+
+		for (const leg of ordered) {
+			const n =
+				pickPartyName(leg.to) ||
+				pickPartyName(leg.from) ||
+				(typeof leg.extension?.name === "string" && leg.extension.name.trim()
+					? leg.extension.name.trim()
+					: null);
+			if (n) return n;
+		}
+		return null;
+	}
+
+	function findAnsweringExtensionId(record) {
+		const legs = record.legs;
+		if (!Array.isArray(legs)) return null;
+		for (const leg of legs) {
+			if (String(leg.legType || "").toLowerCase() !== "accept") continue;
+			const id = leg.extension?.id ?? leg.extensionId;
+			if (id != null) return id;
+		}
+		for (const leg of legs) {
+			const id = leg.extension?.id ?? leg.extensionId;
+			if (id != null) return id;
+		}
+		return null;
+	}
+
+	async function enrichToPartyName(record, baseToName) {
+		if (baseToName) return baseToName;
+
+		if (
+			record.to &&
+			typeof record.to.location === "string" &&
+			record.to.location.trim()
+		) {
+			return record.to.location.trim();
+		}
+
+		const fromLegs = pickNameFromDetailedLegs(record);
+		if (fromLegs) return fromLegs;
+
+		const extId = findAnsweringExtensionId(record);
+		if (extId != null) {
+			const resolved = await getExtensionDisplayName(extId);
+			if (resolved) return resolved;
+		}
+
+		if (
+			record.to &&
+			record.to.extensionNumber != null &&
+			String(record.to.extensionNumber).trim() !== ""
+		) {
+			return `Extension ${String(record.to.extensionNumber).trim()}`;
+		}
+
+		return null;
+	}
+
 	async function persistUpdatedTokensIfNeeded() {
 		try {
 			// The RingCentral SDK may silently refresh access tokens when needed.
@@ -149,6 +256,8 @@ async function poll() {
 				dateFrom: dateFrom(),
 				perPage,
 				page,
+				// Adds `legs` (e.g. Accept + extension id) so we can resolve receiver name.
+				view: "Detailed",
 			});
 			const data = await resp.json();
 			const records = data.records || [];
@@ -193,7 +302,11 @@ async function poll() {
 			const from = record.from?.phoneNumber ?? record.from?.extensionNumber ?? record.from?.name ?? "—";
 			const to = record.to?.phoneNumber ?? record.to?.extensionNumber ?? record.to?.name ?? "—";
 			const fromName = pickPartyName(record.from);
-			const toName = pickPartyName(record.to);
+			let toName = pickPartyName(record.to);
+			// Only enrich when we persist (avoids extra /extension calls for log-only rows).
+			if (hasRecording) {
+				toName = await enrichToPartyName(record, toName);
+			}
 			const startTime = record.startTime ?? "—";
 			const duration = record.duration ?? 0;
 			const type = record.type ?? "—";
@@ -226,6 +339,7 @@ async function poll() {
 							toKeys: Object.keys(record.to ?? {}),
 							fromSample: record.from ?? null,
 							toSample: record.to ?? null,
+							legCount: Array.isArray(record.legs) ? record.legs.length : 0,
 						});
 					}
 
