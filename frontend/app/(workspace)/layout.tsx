@@ -240,6 +240,18 @@ export default function WorkspaceLayout({
 							<SidebarMenu>
 								<SidebarMenuItem>
 									<SidebarMenuButton
+										tooltip="Home"
+										isActive={pathname === "/main-page-1"}
+										asChild
+									>
+										<Link href="/main-page-1">
+											<Home className="size-4" />
+											<span>Home</span>
+										</Link>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+								<SidebarMenuItem>
+									<SidebarMenuButton
 										tooltip="Call Listener"
 										isActive={pathname === "/calls"}
 										asChild
@@ -264,7 +276,7 @@ export default function WorkspaceLayout({
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
-								{/* Previously: Home, Main Page 1, Main Page 2, Items, Team, Settings – see git history to restore */}
+								{/* Previously: Main Page 1, Main Page 2, Items, Team – see git history to restore */}
 							</SidebarMenu>
 						</SidebarGroupContent>
 					</SidebarGroup>
