@@ -23,6 +23,37 @@ type CallRow = {
 	lead_status: string | null;
 };
 
+function formatCallDate(startTime: string | null): string {
+	if (!startTime) return "—";
+	const d = new Date(startTime);
+	if (Number.isNaN(d.getTime())) return "—";
+	return new Intl.DateTimeFormat("en-US", {
+		timeZone: "America/New_York",
+		month: "2-digit",
+		day: "2-digit",
+		year: "2-digit",
+	}).format(d);
+}
+
+function formatCallTime(startTime: string | null): string {
+	if (!startTime) return "—";
+	const d = new Date(startTime);
+	if (Number.isNaN(d.getTime())) return "—";
+	return new Intl.DateTimeFormat("en-US", {
+		timeZone: "America/New_York",
+		hour: "numeric",
+		minute: "2-digit",
+		hour12: true,
+	}).format(d);
+}
+
+function formatDuration(durationSec: number | null): string {
+	if (typeof durationSec !== "number") return "—";
+	const minutes = Math.floor(durationSec / 60);
+	const seconds = Math.max(0, durationSec % 60);
+	return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 async function fetchCalls(): Promise<CallRow[]> {
 	const res = await fetch(`${config.apiUrl}/api/calls`, {
 		// Server-side fetch; no cache to keep it fresh.
@@ -54,10 +85,11 @@ export default async function CallsPage() {
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead>Date / Time</TableHead>
 								<TableHead>From</TableHead>
 								<TableHead>To</TableHead>
-								<TableHead>Duration (s)</TableHead>
+								<TableHead>Date</TableHead>
+								<TableHead>Time</TableHead>
+								<TableHead>Duration (mm:ss)</TableHead>
 								<TableHead>Call Status</TableHead>
 								<TableHead>Lead Status</TableHead>
 							</TableRow>
@@ -65,23 +97,13 @@ export default async function CallsPage() {
 						<TableBody>
 							{calls.length === 0 ? (
 								<TableRow>
-									<TableCell colSpan={6} className="text-center text-sm">
+									<TableCell colSpan={7} className="text-center text-sm">
 										No calls found yet.
 									</TableCell>
 								</TableRow>
 							) : (
 								calls.map((call) => (
 									<TableRow key={call.id}>
-										<TableCell>
-											<Link
-												href={`/calls/${call.id}`}
-												className="text-[#1F2937] hover:underline"
-											>
-												{call.start_time
-													? new Date(call.start_time).toLocaleString()
-													: "—"}
-											</Link>
-										</TableCell>
 										<TableCell>
 											<div className="flex flex-col">
 												<span>{call.from_name || "—"}</span>
@@ -98,7 +120,25 @@ export default async function CallsPage() {
 												</span>
 											</div>
 										</TableCell>
-										<TableCell>{call.duration_sec ?? "—"}</TableCell>
+										<TableCell>
+											<Link
+												href={`/calls/${call.id}`}
+												className="text-[#1F2937] hover:underline"
+											>
+												{formatCallDate(call.start_time)}
+											</Link>
+										</TableCell>
+										<TableCell>
+											<Link
+												href={`/calls/${call.id}`}
+												className="text-[#1F2937] hover:underline"
+											>
+												{formatCallTime(call.start_time)}
+											</Link>
+										</TableCell>
+										<TableCell>
+											{formatDuration(call.duration_sec)}
+										</TableCell>
 										<TableCell className="capitalize">
 											{call.status ?? "—"}
 										</TableCell>

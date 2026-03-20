@@ -122,7 +122,7 @@ router.get("/callback", async (req, res) => {
 					console.warn("[RingCentral] Subscription response missing id:", subJson);
 				}
 			} catch (subErr) {
-				console.error("[RingCentral] Subscription create error:", subErr.message);
+				console.error("🔴 [RingCentral] Subscription create error:", subErr.message);
 				// Don't fail the callback; tokens are stored, user can retry subscription later
 			}
 		} else {

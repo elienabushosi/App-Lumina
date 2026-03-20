@@ -292,7 +292,7 @@ async function poll() {
 		const mostRecentText = mostRecentEst ? mostRecentEst : "—";
 
 		console.log(
-			`[CallLog] Poll run - ${allRecords.length} calls in the logs from last ${DATE_FROM_MINUTES}mins, most recent call was at ${mostRecentText}`
+			`🕒 [CallLog] Poll run - ${allRecords.length} calls in the logs from last ${DATE_FROM_MINUTES}mins, most recent call was at ${mostRecentText}`
 		);
 
 		// Persist tokens after polling so any refresh-token rotation is not lost.
@@ -309,7 +309,7 @@ async function poll() {
 		if (/refresh token has expired/i.test(msg)) {
 			if (!refreshTokenExpiredLogged) {
 				console.error(
-					"[CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
+					"🔴 [CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
 				);
 				refreshTokenExpiredLogged = true;
 			}
@@ -325,7 +325,7 @@ let intervalId = null;
 
 export function startCallLogPoller() {
 	if (intervalId) return;
-	console.log("[CallLog] Poller started (every 30s). Will log new ended calls.");
+	console.log("📞 [CallLog] Poller started (every 30s). Will log new ended calls.");
 	poll();
 	intervalId = setInterval(poll, POLL_INTERVAL_MS);
 }
@@ -334,6 +334,6 @@ export function stopCallLogPoller() {
 	if (intervalId) {
 		clearInterval(intervalId);
 		intervalId = null;
-		console.log("[CallLog] Poller stopped.");
+		console.log("📞 [CallLog] Poller stopped.");
 	}
 }
