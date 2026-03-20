@@ -19,6 +19,41 @@ function displayScalar(v: unknown): string {
 	return "—";
 }
 
+/** e.g. get_quote → Get Quote, not_a_lead → Not A Lead */
+function snakeToTitleCase(s: string): string {
+	return s
+		.split("_")
+		.filter(Boolean)
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+		.join(" ");
+}
+
+/** Enum / API-style values shown as monospace “code” with underscores as words */
+function CodeEnum({ value }: { value: unknown }) {
+	if (value == null || value === "") return "—";
+	if (typeof value !== "string") {
+		return <span>{displayScalar(value)}</span>;
+	}
+	const t = value.trim();
+	if (!t) return "—";
+	return (
+		<code className="rounded border border-[#E0DEDB] bg-[#F4F3F1] px-2 py-0.5 text-xs font-mono text-[#37322F]">
+			{snakeToTitleCase(t)}
+		</code>
+	);
+}
+
+function CodeEnumList({ values }: { values: unknown[] }) {
+	if (!values.length) return "—";
+	return (
+		<span className="flex flex-wrap gap-1.5">
+			{values.map((v, i) => (
+				<CodeEnum key={i} value={v} />
+			))}
+		</span>
+	);
+}
+
 function FormRow({
 	label,
 	value,
@@ -87,7 +122,18 @@ function LeadFormView({ payload }: { payload: any }) {
 					Lead
 				</h3>
 				<div className="rounded-md border border-[#E5E7EB] bg-white px-3">
-					<FormRow label="Status" value={displayScalar(lead.status)} />
+					<FormRow label="Status" value={<CodeEnum value={lead.status} />} />
+				</div>
+			</section>
+
+			<section>
+				<h3 className="text-xs font-semibold uppercase tracking-wide text-[#37322F] mb-2">
+					Basic Information
+				</h3>
+				<div className="rounded-md border border-[#E5E7EB] bg-white px-3">
+					<FormRow label="Full name" value={displayScalar(name.full)} />
+					<FormRow label="First name" value={displayScalar(name.first)} />
+					<FormRow label="Last name" value={displayScalar(name.last)} />
 					<FormRow
 						label="Date of birth"
 						value={displayScalar(lead.date_of_birth)}
@@ -100,17 +146,6 @@ function LeadFormView({ payload }: { payload: any }) {
 						label="Occupation / degree"
 						value={displayScalar(lead.occupation_degree)}
 					/>
-				</div>
-			</section>
-
-			<section>
-				<h3 className="text-xs font-semibold uppercase tracking-wide text-[#37322F] mb-2">
-					Name
-				</h3>
-				<div className="rounded-md border border-[#E5E7EB] bg-white px-3">
-					<FormRow label="Full name" value={displayScalar(name.full)} />
-					<FormRow label="First name" value={displayScalar(name.first)} />
-					<FormRow label="Last name" value={displayScalar(name.last)} />
 				</div>
 			</section>
 
@@ -130,7 +165,7 @@ function LeadFormView({ payload }: { payload: any }) {
 					<FormRow label="Email" value={displayScalar(contact.email)} />
 					<FormRow
 						label="Preferred channel"
-						value={displayScalar(contact.preferred_channel)}
+						value={<CodeEnum value={contact.preferred_channel} />}
 					/>
 				</div>
 			</section>
@@ -178,15 +213,11 @@ function LeadFormView({ payload }: { payload: any }) {
 				<div className="rounded-md border border-[#E5E7EB] bg-white px-3">
 					<FormRow
 						label="Lines of business"
-						value={
-							lob.length
-								? lob.map(String).join(", ")
-								: "—"
-						}
+						value={<CodeEnumList values={lob} />}
 					/>
 					<FormRow
 						label="Primary line"
-						value={displayScalar(insurance.primary_line)}
+						value={<CodeEnum value={insurance.primary_line} />}
 					/>
 					<FormRow
 						label="Current carrier"
@@ -232,10 +263,13 @@ function LeadFormView({ payload }: { payload: any }) {
 					Intent
 				</h3>
 				<div className="rounded-md border border-[#E5E7EB] bg-white px-3">
-					<FormRow label="Urgency" value={displayScalar(intent.urgency)} />
+					<FormRow
+						label="Urgency"
+						value={<CodeEnum value={intent.urgency} />}
+					/>
 					<FormRow
 						label="Primary goal"
-						value={displayScalar(intent.primary_goal)}
+						value={<CodeEnum value={intent.primary_goal} />}
 					/>
 				</div>
 			</section>
@@ -248,9 +282,12 @@ function LeadFormView({ payload }: { payload: any }) {
 					<FormRow label="Call ID" value={displayScalar(meta.call_id)} />
 					<FormRow
 						label="Call direction"
-						value={displayScalar(meta.call_direction)}
+						value={<CodeEnum value={meta.call_direction} />}
 					/>
-					<FormRow label="Call result" value={displayScalar(meta.call_result)} />
+					<FormRow
+						label="Call result"
+						value={<CodeEnum value={meta.call_result} />}
+					/>
 				</div>
 			</section>
 		</div>

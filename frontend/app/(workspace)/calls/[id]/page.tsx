@@ -96,10 +96,6 @@ export default async function CallDetailPage({
 
 				<div className="grid gap-4 md:grid-cols-2">
 					<div className="rounded-lg border border-[#E0DEDB] bg-white shadow-sm md:col-span-2 overflow-hidden">
-						<div className="bg-[#F4F3F1] border-b border-[#E0DEDB] px-4 py-3">
-							<h2 className="text-sm font-semibold text-[#37322F]">Call Info</h2>
-						</div>
-
 						<div className="p-4 overflow-x-auto">
 							<Table>
 								<TableHeader>
