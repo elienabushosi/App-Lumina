@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { config } from "@/lib/config";
 import {
 	Table,
@@ -8,6 +7,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { ClickableCallRow } from "@/components/calls-table-row";
+import { formatDisplayPhone } from "@/lib/format-phone";
+import {
+	formatCallDate,
+	formatCallTime,
+	formatDuration,
+} from "@/lib/format-call";
 
 type CallRow = {
 	id: string;
@@ -15,44 +21,13 @@ type CallRow = {
 	ringcentral_call_id: string;
 	from_number: string | null;
 	to_number: string | null;
-		from_name: string | null;
-		to_name: string | null;
+	from_name: string | null;
+	to_name: string | null;
 	start_time: string | null;
 	duration_sec: number | null;
 	status: string;
 	lead_status: string | null;
 };
-
-function formatCallDate(startTime: string | null): string {
-	if (!startTime) return "—";
-	const d = new Date(startTime);
-	if (Number.isNaN(d.getTime())) return "—";
-	return new Intl.DateTimeFormat("en-US", {
-		timeZone: "America/New_York",
-		month: "2-digit",
-		day: "2-digit",
-		year: "2-digit",
-	}).format(d);
-}
-
-function formatCallTime(startTime: string | null): string {
-	if (!startTime) return "—";
-	const d = new Date(startTime);
-	if (Number.isNaN(d.getTime())) return "—";
-	return new Intl.DateTimeFormat("en-US", {
-		timeZone: "America/New_York",
-		hour: "numeric",
-		minute: "2-digit",
-		hour12: true,
-	}).format(d);
-}
-
-function formatDuration(durationSec: number | null): string {
-	if (typeof durationSec !== "number") return "—";
-	const minutes = Math.floor(durationSec / 60);
-	const seconds = Math.max(0, durationSec % 60);
-	return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
 
 async function fetchCalls(): Promise<CallRow[]> {
 	const res = await fetch(`${config.apiUrl}/api/calls`, {
@@ -89,7 +64,7 @@ export default async function CallsPage() {
 								<TableHead>To</TableHead>
 								<TableHead>Date</TableHead>
 								<TableHead>Time</TableHead>
-								<TableHead>Duration (mm:ss)</TableHead>
+								<TableHead>Duration</TableHead>
 								<TableHead>Call Status</TableHead>
 								<TableHead>Lead Status</TableHead>
 							</TableRow>
@@ -103,49 +78,19 @@ export default async function CallsPage() {
 								</TableRow>
 							) : (
 								calls.map((call) => (
-									<TableRow key={call.id}>
-										<TableCell>
-											<div className="flex flex-col">
-												<span>{call.from_name || "—"}</span>
-												<span className="text-xs text-[#605A57]">
-													{call.from_number || "—"}
-												</span>
-											</div>
-										</TableCell>
-										<TableCell>
-											<div className="flex flex-col">
-												<span>{call.to_name || "—"}</span>
-												<span className="text-xs text-[#605A57]">
-													{call.to_number || "—"}
-												</span>
-											</div>
-										</TableCell>
-										<TableCell>
-											<Link
-												href={`/calls/${call.id}`}
-												className="text-[#1F2937] hover:underline"
-											>
-												{formatCallDate(call.start_time)}
-											</Link>
-										</TableCell>
-										<TableCell>
-											<Link
-												href={`/calls/${call.id}`}
-												className="text-[#1F2937] hover:underline"
-											>
-												{formatCallTime(call.start_time)}
-											</Link>
-										</TableCell>
-										<TableCell>
-											{formatDuration(call.duration_sec)}
-										</TableCell>
-										<TableCell className="capitalize">
-											{call.status ?? "—"}
-										</TableCell>
-										<TableCell className="capitalize">
-											{call.lead_status ?? "—"}
-										</TableCell>
-									</TableRow>
+									<ClickableCallRow
+										key={call.id}
+										callId={call.id}
+										fromName={call.from_name || "—"}
+										fromPhoneDisplay={formatDisplayPhone(call.from_number)}
+										toName={call.to_name || "—"}
+										toPhoneDisplay={formatDisplayPhone(call.to_number)}
+										dateLabel={formatCallDate(call.start_time)}
+										timeLabel={formatCallTime(call.start_time)}
+										durationLabel={formatDuration(call.duration_sec)}
+										status={call.status ?? "—"}
+										leadStatus={call.lead_status}
+									/>
 								))
 							)}
 						</TableBody>
@@ -155,4 +100,3 @@ export default async function CallsPage() {
 		</div>
 	);
 }
-

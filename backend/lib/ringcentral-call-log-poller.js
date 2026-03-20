@@ -199,16 +199,10 @@ async function poll() {
 			const type = record.type ?? "—";
 			const result = record.result ?? "—";
 			const direction = record.direction ?? "—";
-			const directionLower =
-				typeof direction === "string" ? direction.toLowerCase() : "";
-			// For inbound calls, the caller is RingCentral's `to`, and the receiver is `from`.
-			// For outbound calls, caller is `from` and receiver is `to`.
-			const isInbound = directionLower === "inbound";
-
-			const callerNumber = isInbound ? to : from;
-			const receiverNumber = isInbound ? from : to;
-			const callerName = isInbound ? toName : fromName;
-			const receiverName = isInbound ? fromName : toName;
+			// Match RingCentral call-log semantics: `from` / `to` are already the wire parties
+			// (inbound: customer → from, your number → to; outbound: your line → from, callee → to).
+			const fromNumber = from !== "—" ? from : null;
+			const toNumber = to !== "—" ? to : null;
 
 			console.log("[CallLog] Ended call:", {
 				id,
@@ -242,10 +236,10 @@ async function poll() {
 							id_organization: STATE_KEY,
 							ringcentral_call_id: id,
 							recording_content_uri: recordingContentUri,
-							from_number: callerNumber !== "—" ? callerNumber : null,
-							to_number: receiverNumber !== "—" ? receiverNumber : null,
-							from_name: callerName,
-							to_name: receiverName,
+							from_number: fromNumber,
+							to_number: toNumber,
+							from_name: fromName,
+							to_name: toName,
 							start_time: record.startTime || null,
 							duration_sec: duration || null,
 							status: "pending_transcription",
@@ -268,8 +262,10 @@ async function poll() {
 					await db
 						.from("call_recordings")
 						.update({
-							from_name: callerName ?? null,
-							to_name: receiverName ?? null,
+							from_number: fromNumber,
+							to_number: toNumber,
+							from_name: fromName ?? null,
+							to_name: toName ?? null,
 						})
 						.eq("ringcentral_call_id", id);
 				} catch (e) {

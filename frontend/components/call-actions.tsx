@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { config } from "@/lib/config";
 import { Loader2 } from "lucide-react";
+import { LeadStatusBadge } from "@/components/lead-status-badge";
 
 type Props = {
 	callId: string;
@@ -126,8 +127,11 @@ export function CallActions({
 				</Button>
 			</div>
 			{message && (
-				<p className="text-xs text-green-700">
-					{message} {leadStatus && `(lead status: ${leadStatus})`}
+				<p className="text-xs text-green-700 flex flex-wrap items-center gap-2">
+					<span>{message}</span>
+					{leadStatus != null && leadStatus !== "" && (
+						<LeadStatusBadge status={leadStatus} />
+					)}
 				</p>
 			)}
 			{error && <p className="text-xs text-red-700">{error}</p>}

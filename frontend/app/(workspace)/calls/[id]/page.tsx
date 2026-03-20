@@ -10,6 +10,13 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { CallActions } from "@/components/call-actions";
+import { LeadStatusBadge } from "@/components/lead-status-badge";
+import { formatDisplayPhone } from "@/lib/format-phone";
+import {
+	formatCallDate,
+	formatCallTime,
+	formatDuration,
+} from "@/lib/format-call";
 import {
 	Captions,
 	CalendarDays,
@@ -42,37 +49,6 @@ async function fetchCall(id: string): Promise<CallDetail | null> {
 	if (res.status === 404) return null;
 	if (!res.ok) return null;
 	return res.json();
-}
-
-function formatCallDate(startTime: string | null): string {
-	if (!startTime) return "—";
-	const d = new Date(startTime);
-	if (Number.isNaN(d.getTime())) return "—";
-	return new Intl.DateTimeFormat("en-US", {
-		timeZone: "America/New_York",
-		month: "2-digit",
-		day: "2-digit",
-		year: "2-digit",
-	}).format(d);
-}
-
-function formatCallTime(startTime: string | null): string {
-	if (!startTime) return "—";
-	const d = new Date(startTime);
-	if (Number.isNaN(d.getTime())) return "—";
-	return new Intl.DateTimeFormat("en-US", {
-		timeZone: "America/New_York",
-		hour: "numeric",
-		minute: "2-digit",
-		hour12: true,
-	}).format(d);
-}
-
-function formatDuration(durationSec: number | null): string {
-	if (typeof durationSec !== "number") return "—";
-	const minutes = Math.floor(durationSec / 60);
-	const seconds = Math.max(0, durationSec % 60);
-	return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 export default async function CallDetailPage({
@@ -129,7 +105,7 @@ export default async function CallDetailPage({
 										<div className="flex flex-col">
 											<span>{call.from_name || "—"}</span>
 											<span className="text-xs text-[#605A57]">
-												{call.from_number || "—"}
+												{formatDisplayPhone(call.from_number)}
 											</span>
 										</div>
 									</TableCell>
@@ -143,7 +119,7 @@ export default async function CallDetailPage({
 										<div className="flex flex-col">
 											<span>{call.to_name || "—"}</span>
 											<span className="text-xs text-[#605A57]">
-												{call.to_number || "—"}
+												{formatDisplayPhone(call.to_number)}
 											</span>
 										</div>
 									</TableCell>
@@ -163,7 +139,7 @@ export default async function CallDetailPage({
 									<TableCell>{formatCallTime(call.start_time)}</TableCell>
 								</TableRow>
 								<TableRow>
-									<TableHead>Duration (mm:ss)</TableHead>
+									<TableHead>Duration</TableHead>
 									<TableCell>
 										{formatDuration(call.duration_sec)}
 									</TableCell>
@@ -179,8 +155,8 @@ export default async function CallDetailPage({
 										<CircleDollarSign className="h-4 w-4 inline-block mr-2" />
 										Lead Status
 									</TableHead>
-									<TableCell className="capitalize">
-										{call.lead_status ?? "—"}
+									<TableCell>
+										<LeadStatusBadge status={call.lead_status} />
 									</TableCell>
 								</TableRow>
 							</TableBody>
