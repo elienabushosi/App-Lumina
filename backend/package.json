@@ -6,15 +6,29 @@
   "scripts": {
     "dev": "NODE_ENV=development node --watch server.js",
     "start": "NODE_ENV=production node server.js",
-    "prod": "NODE_ENV=production node server.js"
+    "prod": "NODE_ENV=production node server.js",
+    "dev:proposals": "NODE_ENV=development tsx watch src/server.ts",
+    "build:proposals": "tsc",
+    "test:e2e": "NODE_ENV=development tsx src/test-e2e.ts"
   },
   "dependencies": {
+    "@google/genai": "^1.46.0",
     "@ringcentral/sdk": "^5.0.6",
     "@supabase/supabase-js": "^2.89.0",
+    "bullmq": "^5.71.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
+    "playwright": "^1.58.2",
     "resend": "^4.0.0",
-    "stripe": "^17.3.1"
+    "stripe": "^17.3.1",
+    "winston": "^3.17.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   }
 }

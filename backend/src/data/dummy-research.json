@@ -1,0 +1,44 @@
+{
+  "proposalId": "test-001",
+  "property": {
+    "address": "9808 Coolidge Dr",
+    "city": "McKinney",
+    "state": "TX",
+    "zip": "75070",
+    "county": "Collin County",
+    "apn": "R-8113-00D-0190-1"
+  },
+  "cad": {
+    "data": {
+      "propertyType": "Single-family home",
+      "yearBuilt": 2003,
+      "livingAreaSqft": 1914,
+      "totalBuildingSqft": 2379,
+      "attachedGarageSqft": 465,
+      "coveredPorchPatioSqft": 44,
+      "lastSaleAmount": 133700,
+      "lastSaleDate": "2003-08-13",
+      "estimatedValue": 355921
+    }
+  },
+  "googleMaps": {
+    "data": {
+      "structureType": "single-family",
+      "stories": 2,
+      "exteriorMaterial": "brick",
+      "roofStyle": "hip",
+      "roofCovering": "asphalt shingle",
+      "foundationType": "slab",
+      "solarPanelsVisible": false,
+      "poolVisible": false
+    }
+  },
+  "realtor": {
+    "data": {
+      "flooringType": "hardwood and carpet",
+      "bathroomCount": 2,
+      "kitchenFinishes": "standard",
+      "interiorCondition": "good"
+    }
+  }
+}
