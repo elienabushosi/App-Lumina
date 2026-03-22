@@ -10,6 +10,9 @@
  *   6. Navigate to the lead in 360 and fill the form
  *   7. Close the context (browser stays open for reuse)
  */
+import { writeFileSync, mkdirSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { env } from '../config/env.js';
 import { getContextForAgent, persistSession } from './session.js';
 import { loginToSalesforce } from './login.js';
 import { waitForMfaCode, submitMfaCode } from './mfa.js';
@@ -17,6 +20,8 @@ import { fillAltaForm } from './alta.js';
 import { fill360Form } from './360.js';
 import logger from '../lib/logger.js';
 import type { ResearchReport } from '../types/proposal.js';
+
+const SCREENSHOT_DIR = './screenshots';
 
 export async function runApexStep(
   proposalId: string,
@@ -46,6 +51,27 @@ export async function runApexStep(
 
     await persistSession(context, agentId);
     logger.info({ proposalId, step: 'apex', status: 'logged_in' });
+
+    // ── Screenshot after login ─────────────────────────────────────────────
+    {
+      // Read org domain from saved session cookies
+      const sessionPath = join(env.SF_SESSION_DIR, `${agentId}.json`);
+      const session = JSON.parse(readFileSync(sessionPath, 'utf-8'));
+      const orgDomain = (session.cookies as Array<{ domain: string }>)
+        .map(c => c.domain)
+        .find(d => d.endsWith('.my.salesforce.com') && !d.startsWith('.'));
+      const orgUrl = orgDomain ? `https://${orgDomain}` : env.SF_LOGIN_URL;
+
+      const verifyPage = await context.newPage();
+      await verifyPage.goto(orgUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await verifyPage.waitForTimeout(2000);
+      const screenshotBuffer = await verifyPage.screenshot({ type: 'png', fullPage: true });
+      mkdirSync(SCREENSHOT_DIR, { recursive: true });
+      const screenshotPath = join(SCREENSHOT_DIR, `login-${proposalId}.png`);
+      writeFileSync(screenshotPath, screenshotBuffer);
+      logger.info({ proposalId, step: 'apex', msg: 'Screenshot saved', path: screenshotPath, url: verifyPage.url() });
+      await verifyPage.close();
+    }
 
     // ── Navigate to Alta and fill ──────────────────────────────────────────
     const altaPage = await context.newPage();

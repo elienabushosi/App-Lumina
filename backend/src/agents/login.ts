@@ -7,6 +7,7 @@
 import type { BrowserContext } from 'playwright';
 import { env } from '../config/env.js';
 import logger from '../lib/logger.js';
+import { startTimer } from '../lib/timer.js';
 
 export type LoginResult = 'success' | 'mfa_required' | 'failed';
 
@@ -14,6 +15,7 @@ export async function loginToSalesforce(
   context: BrowserContext,
   proposalId: string
 ): Promise<LoginResult> {
+  const timer = startTimer();
   const page = await context.newPage();
   logger.info({ proposalId, step: 'login', status: 'started' });
 
@@ -42,13 +44,13 @@ export async function loginToSalesforce(
     logger.info({ proposalId, step: 'login', status: 'navigated', url });
 
     const result = detectPostLoginState(url);
-    logger.info({ proposalId, step: 'login', status: result });
+    logger.info({ proposalId, step: 'login', status: result, durationMs: timer() });
 
     // Keep the page open if MFA is needed — mfa.ts uses context.pages() to find it
     if (result !== 'mfa_required') await page.close();
     return result;
   } catch (err) {
-    logger.error({ proposalId, step: 'login', status: 'failed', err });
+    logger.error({ proposalId, step: 'login', status: 'failed', durationMs: timer(), err });
     await page.close();
     return 'failed';
   }

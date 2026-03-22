@@ -11,6 +11,7 @@
 import type { Page } from 'playwright';
 import { runGeminiLoop } from './gemini.js';
 import logger from '../lib/logger.js';
+import { startTimer } from '../lib/timer.js';
 import type { ResearchReport } from '../types/proposal.js';
 
 export async function fill360Form(
@@ -18,6 +19,7 @@ export async function fill360Form(
   report: ResearchReport,
   proposalId: string
 ): Promise<void> {
+  const timer = startTimer();
   logger.info({ proposalId, step: '360', status: 'started' });
 
   const cad = report.cad.data;
@@ -60,5 +62,5 @@ export async function fill360Form(
 
   await runGeminiLoop(page, goal, proposalId, { context });
 
-  logger.info({ proposalId, step: '360', status: 'complete' });
+  logger.info({ proposalId, step: '360', status: 'complete', durationMs: timer() });
 }

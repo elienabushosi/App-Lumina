@@ -11,6 +11,7 @@
 import type { Page } from 'playwright';
 import { runGeminiLoop } from './gemini.js';
 import logger from '../lib/logger.js';
+import { startTimer } from '../lib/timer.js';
 import type { ResearchReport } from '../types/proposal.js';
 
 export async function fillAltaForm(
@@ -18,6 +19,7 @@ export async function fillAltaForm(
   report: ResearchReport,
   proposalId: string
 ): Promise<void> {
+  const timer = startTimer();
   logger.info({ proposalId, step: 'alta', status: 'started' });
 
   const cad = report.cad.data;
@@ -62,5 +64,5 @@ export async function fillAltaForm(
 
   await runGeminiLoop(page, goal, proposalId, { context });
 
-  logger.info({ proposalId, step: 'alta', status: 'complete' });
+  logger.info({ proposalId, step: 'alta', status: 'complete', durationMs: timer() });
 }

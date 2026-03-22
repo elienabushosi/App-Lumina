@@ -1,4 +1,5 @@
 import logger from '../lib/logger.js';
+import { startTimer } from '../lib/timer.js';
 import { runCADStep } from './cad.step.js';
 import { runMapsStep } from './maps.step.js';
 import { runRealtorStep } from './realtor.step.js';
@@ -8,6 +9,7 @@ export async function runResearchAggregator(
   proposalId: string,
   input: ProposalInput
 ): Promise<ResearchReport> {
+  const timer = startTimer();
   logger.info({ proposalId, step: 'aggregator', status: 'started' });
 
   const fullAddress = [
@@ -35,7 +37,7 @@ export async function runResearchAggregator(
   };
 
   const gathered = [cad, googleMaps, realtor].filter(Boolean).length;
-  logger.info({ proposalId, step: 'aggregator', status: 'complete', gathered: `${gathered}/3` });
+  logger.info({ proposalId, step: 'aggregator', status: 'complete', gathered: `${gathered}/3`, durationMs: timer() });
 
   return report;
 }
