@@ -39,6 +39,7 @@ import {
 	Box,
 	ScanSearch,
 	Phone,
+	ContactRound,
 } from "lucide-react";
 
 function SidebarHeaderContent({
@@ -74,6 +75,12 @@ function getPageTitle(pathname: string): string {
 	}
 	if (pathname === "/research-browser-run") {
 		return "Browser Run";
+	}
+	if (pathname.startsWith("/agency-zoom-leads/")) {
+		return "Lead Detail";
+	}
+	if (pathname === "/agency-zoom-leads") {
+		return "Agency Zoom Leads";
 	}
 	if (pathname === "/home" || pathname === "/") {
 		return "Home";
@@ -240,43 +247,41 @@ export default function WorkspaceLayout({
 							<SidebarMenu>
 								<SidebarMenuItem>
 									<SidebarMenuButton
-										tooltip="Home"
-										isActive={pathname === "/main-page-1"}
+										tooltip="Agency Zoom Leads"
+										isActive={pathname.startsWith("/agency-zoom-leads")}
 										asChild
 									>
-										<Link href="/main-page-1">
-											<Home className="size-4" />
-											<span>Home</span>
+										<Link href="/agency-zoom-leads">
+											<ContactRound className="size-4" />
+											<span>AZ Leads</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
 								<SidebarMenuItem>
 									<SidebarMenuButton
-										tooltip="Call Listener"
+										tooltip="Call Listener Agent"
 										isActive={pathname === "/calls"}
 										asChild
 									>
 										<Link href="/calls">
 											<Phone className="size-4" />
-											<span>Call Listener</span>
+											<span>Call Listener Agent</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
 								<SidebarMenuItem>
 									<SidebarMenuButton
-										tooltip="Research Agent - Demo"
-										isActive={
-											pathname === "/research-agent"
-										}
+										tooltip="Research Agent"
+										isActive={pathname === "/research-agent"}
 										asChild
 									>
 										<Link href="/research-agent">
 											<ScanSearch className="size-4" />
-											<span>Research Agent - Demo</span>
+											<span>Research Agent</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
-								{/* Previously: Main Page 1, Main Page 2, Items, Team – see git history to restore */}
+								{/* Previously: Home, Main Page 1, Main Page 2, Items, Team – see git history to restore */}
 							</SidebarMenu>
 						</SidebarGroupContent>
 					</SidebarGroup>

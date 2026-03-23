@@ -57,21 +57,28 @@ function ResearchAgentInner() {
 	const [address, setAddress] = useState("");
 	// Individual address parts from query params (used for API call)
 	const [addrParts, setAddrParts] = useState<{ address: string; city: string; state: string; zip: string } | null>(null);
+	// Lead context from Agency Zoom (passed via URL params)
+	const [leadName, setLeadName] = useState<string | null>(null);
+	const [agencyZoomLeadId, setAgencyZoomLeadId] = useState<string | null>(null);
 	// Real CAD data from ATTOM API
 	const [cadData, setCadData] = useState<CadData | null>(null);
 	const [cadError, setCadError] = useState<string | null>(null);
 
-	// Pre-fill address from query params (e.g. navigated from call detail "Start Proposal")
+	// Pre-fill address from query params (e.g. navigated from call detail or AZ leads page)
 	useEffect(() => {
 		const a = searchParams.get("address");
 		const c = searchParams.get("city");
 		const s = searchParams.get("state");
 		const z = searchParams.get("zip");
+		const ln = searchParams.get("leadName");
+		const azId = searchParams.get("agencyZoomLeadId");
 		const parts = [a, c, s, z].filter(Boolean);
 		if (parts.length > 0) {
 			setAddress(parts.join(", "));
 			if (a && c && s) setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
 		}
+		if (ln) setLeadName(ln);
+		if (azId) setAgencyZoomLeadId(azId);
 	}, [searchParams]);
 	const [zillowStage, setZillowStage] = useState(0);
 	const [redfinStage, setRedfinStage] = useState(0);
@@ -223,9 +230,19 @@ function ResearchAgentInner() {
 	return (
 		<div className="p-8">
 			<div className="max-w-4xl mx-auto space-y-6">
-				<h1 className="text-2xl font-semibold text-[#37322F]">
-					Research Agent
-				</h1>
+				<div>
+					<h1 className="text-2xl font-semibold text-[#37322F]">
+						Research Agent
+					</h1>
+					{leadName && (
+						<p className="text-sm text-[#605A57] mt-1">
+							Researching for: <span className="font-medium text-[#37322F]">{leadName}</span>
+							{agencyZoomLeadId && (
+								<span className="ml-2 text-xs text-[#605A57]">AZ #{agencyZoomLeadId}</span>
+							)}
+						</p>
+					)}
+				</div>
 
 				{step !== STEPS.INPUT && (
 					<>
