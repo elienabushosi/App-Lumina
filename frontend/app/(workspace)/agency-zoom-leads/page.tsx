@@ -32,9 +32,7 @@ type AZLead = {
 	zip?: string;
 	status?: string;
 	lastEnterStageDate?: string;
-	// leadSource may be an object or just a name string
-	leadSource?: { id?: number; name?: string } | string;
-	leadSourceName?: string;
+	leadSourceName?: string; // AZ actual field name
 };
 
 function formatDate(dateStr?: string) {
@@ -185,10 +183,7 @@ export default function AgencyZoomLeadsPage() {
 									const address = [lead.streetAddress, lead.city, lead.state]
 										.filter(Boolean)
 										.join(", ");
-									const leadSourceLabel =
-										typeof lead.leadSource === "string"
-											? lead.leadSource
-											: lead.leadSource?.name || lead.leadSourceName || "—";
+									const leadSourceLabel = lead.leadSourceName || "—";
 
 									return (
 										<TableRow
@@ -208,7 +203,7 @@ export default function AgencyZoomLeadsPage() {
 												{lead.email || "—"}
 											</TableCell>
 											<TableCell>
-												{lead.status ? (
+												{!!lead.status ? (
 													<Badge variant={statusColor(lead.status) as "default" | "secondary" | "destructive"}>
 														{lead.status}
 													</Badge>

@@ -14,6 +14,37 @@ import {
 	CircleCheck,
 } from "lucide-react";
 
+type RealtorApiData = {
+	flooring: string[];
+	bathroomCount: number;
+	foundationDetails: string[];
+	exteriorFeatures: string[];
+	constructionMaterials: string[];
+	roofType: string | null;
+	parkingFeatures: string[];
+	hasFireplace: boolean | null;
+	cooling: string[];
+	heating: string[];
+	zestimate: number | null;
+	rentZestimate: number | null;
+	taxAssessedValue: number | null;
+	taxAnnualAmount: number | null;
+	propertyTaxRate: number | null;
+	schools: Array<{ name: string; rating: number | null; level: string; distance: number; grades: string }>;
+	hasInteriorPhotos: boolean;
+	homeStatus: string | null;
+	interiorAnalysis: {
+		flooringType: string | null;
+		flooringCondition: string | null;
+		kitchenFinishes: string | null;
+		interiorCondition: string | null;
+		notableFeatures: string[];
+	} | null;
+	flooringType: string;
+	kitchenFinishes: string;
+	interiorCondition: string;
+};
+
 // Demo steps (dummy data flow)
 const STEPS = {
 	INPUT: 0,
@@ -80,9 +111,10 @@ function ResearchAgentInner() {
 		if (ln) setLeadName(ln);
 		if (azId) setAgencyZoomLeadId(azId);
 	}, [searchParams]);
-	const [zillowStage, setZillowStage] = useState(0);
-	const [redfinStage, setRedfinStage] = useState(0);
-	const [zillowRedfinViewPhase, setZillowRedfinViewPhase] = useState(0);
+	// Real realtor state
+	const [realtorData, setRealtorData] = useState<RealtorApiData | null>(null);
+	const [realtorLoading, setRealtorLoading] = useState(false);
+	const [realtorError, setRealtorError] = useState<string | null>(null);
 	// Real maps state
 	const [mapsLoading, setMapsLoading] = useState(false);
 	const [mapsData, setMapsData] = useState<{
@@ -110,7 +142,7 @@ function ResearchAgentInner() {
 	const defaultAddress = "9808 Coolidge Dr. Mckinney,Tx 75070";
 	const effectiveAddress = address || defaultAddress;
 	const analysisComplete = mapsData !== null;
-	const zillowRedfinComplete = redfinStage === 2;
+	const zillowRedfinComplete = realtorData !== null;
 
 	// Build attributes from real ATTOM data only
 	const displayAttributes = cadData
@@ -131,37 +163,30 @@ function ResearchAgentInner() {
 		]
 		: [];
 
-	// When entering Zillow & Redfin step, show loader first, then imagery
-	useEffect(() => {
-		if (step !== STEPS.DATA_GATHERED) return;
-		setZillowRedfinViewPhase(0);
-	}, [step]);
+	const handleStartRealtorAnalysis = async () => {
+		setRealtorData(null);
+		setRealtorError(null);
+		setRealtorLoading(true);
+		setStep(STEPS.DATA_GATHERED);
 
-	useEffect(() => {
-		if (step !== STEPS.DATA_GATHERED || zillowRedfinViewPhase !== 0) return;
-		const t = setTimeout(() => setZillowRedfinViewPhase(1), 2200);
-		return () => clearTimeout(t);
-	}, [step, zillowRedfinViewPhase]);
-
-	// Zillow / Redfin interior photos – staged like Google Maps (only after view phase 1)
-	useEffect(() => {
-		if (step !== STEPS.DATA_GATHERED || zillowRedfinViewPhase !== 1) return;
-		setZillowStage(0);
-		setRedfinStage(0);
-
-		const t1 = setTimeout(() => setZillowStage(1), 600);
-		const t2 = setTimeout(() => {
-			setZillowStage(2);
-			setRedfinStage(1);
-		}, 2000);
-		const t3 = setTimeout(() => setRedfinStage(2), 3400);
-
-		return () => {
-			clearTimeout(t1);
-			clearTimeout(t2);
-			clearTimeout(t3);
-		};
-	}, [step, zillowRedfinViewPhase]);
+		try {
+			const fullAddress = addrParts
+				? `${addrParts.address}, ${addrParts.city}, ${addrParts.state} ${addrParts.zip}`
+				: effectiveAddress;
+			const params = new URLSearchParams({ address: fullAddress });
+			const res = await fetch(`${config.apiUrl}/api/property/realtor?${params}`);
+			const json = await res.json();
+			if (!res.ok) {
+				setRealtorError(json.error ?? `API error ${res.status}`);
+			} else {
+				setRealtorData(json as RealtorApiData);
+			}
+		} catch (err) {
+			setRealtorError(err instanceof Error ? err.message : "Failed to fetch Realtor data.");
+		} finally {
+			setRealtorLoading(false);
+		}
+	};
 
 	const handleStartMapsAnalysis = async () => {
 		setMapsData(null);
@@ -269,10 +294,10 @@ function ResearchAgentInner() {
 									Google Map image analysis data stored
 								</span>
 							)}
-							{step >= STEPS.DATA_GATHERED && (step > STEPS.DATA_GATHERED || zillowRedfinComplete) && (
+							{zillowRedfinComplete && (
 								<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
 									<CircleCheck className="w-3.5 h-3.5" />
-									Zillow &amp; Redfin data stored
+									Realtor.com data stored
 								</span>
 							)}
 						</div>
@@ -553,12 +578,12 @@ function ResearchAgentInner() {
 							<div className="pt-2 space-y-3">
 								<p className="text-sm font-medium text-[#37322F]">Are you ready to continue with Realtor.com?</p>
 								<p className="text-sm text-[#605A57]">
-									We&apos;ll use a vision model to infer interior finishes, bathrooms, flooring types, and overall interior quality.
+									We&apos;ll pull structured Zillow records — flooring, bathrooms, valuation, schools, and interior condition.
 								</p>
 								<div className="flex gap-3">
 									<Button
 										type="button"
-										onClick={() => setStep(STEPS.DATA_GATHERED)}
+										onClick={handleStartRealtorAnalysis}
 										className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white"
 									>
 										Yes, continue
@@ -576,178 +601,164 @@ function ResearchAgentInner() {
 					</div>
 				)}
 
-				{/* ZILLOW_REDFIN_PROMPT step is now unused; kept for future expansion */}
-
-				{/* Zillow & Redfin interior analysis */}
+				{/* Realtor.com / Zillow data */}
 				{step === STEPS.DATA_GATHERED && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 space-y-6">
-						{zillowRedfinViewPhase === 0 ? (
-							/* Loading state: logos + dots + "Viewing Zillow & Redfin listing photos" */
-							<div className="flex flex-col items-center justify-center py-12 gap-4">
-								<div className="flex items-center gap-3">
-									<img
-										src="/logos/Zillow-Logo.png"
-										alt="Zillow"
-										className="h-12 w-auto object-contain"
-									/>
-									<img
-										src="/logos/Redin-Logo.png"
-										alt="Redfin"
-										className="h-8 w-auto object-contain"
-									/>
-								</div>
-								<div className="flex items-center gap-2 text-sm text-[#605A57]">
-									<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
-									<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
-									<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-									<span className="ml-1">Viewing Zillow &amp; Redfin listing photos</span>
-								</div>
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+							<div className="flex items-center gap-3 shrink-0">
+								<img src="/logos/Zillow-Logo.png" alt="Zillow" className="h-9 w-auto object-contain" />
 							</div>
-						) : (
-							<>
-						<div className="space-y-2">
-							<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-								<div className="flex items-center gap-3 shrink-0">
-									<img
-										src="/logos/Zillow-Logo.png"
-										alt="Zillow"
-										className="h-9 w-auto object-contain"
-									/>
-									<img
-										src="/logos/Redin-Logo.png"
-										alt="Redfin"
-										className="h-6 w-auto object-contain"
-									/>
-								</div>
-								<p className="text-xs text-[#605A57] sm:text-right min-w-0">
-									Using listing photos from Zillow &amp; Redfin to understand interior finishes and quality.
-								</p>
-							</div>
-							<div className="flex items-center gap-1 text-xs text-[#605A57]">
-								<span
-									className={`w-2 h-2 rounded-full bg-[#6C70BA] ${
-										zillowRedfinComplete ? "" : "animate-bounce"
-									}`}
-								/>
-								<span>{zillowRedfinComplete ? "Analysis complete" : "AI is analyzing interior photos…"}</span>
-							</div>
+							<p className="text-xs text-[#605A57] sm:text-right">
+								{realtorLoading ? "Fetching Zillow records…" : realtorData ? "Realtor.com / Zillow Records" : ""}
+							</p>
 						</div>
 
-						<div className="grid gap-6 md:grid-cols-2">
-							{/* Zillow - Bathroom */}
-							<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-[#f9fafb] overflow-hidden flex flex-col gap-3">
-								<div className="relative">
-									<img
-										src="/Bathroom.jpg"
-										alt="Bathroom interior"
-										className="w-full h-48 object-cover"
-									/>
-									<div
-										className={`pointer-events-none absolute inset-0 bg-linear-to-r from-white/10 via-white/40 to-white/10 ${
-											zillowStage >= 2 ? "opacity-0 transition-opacity duration-500" : "animate-pulse"
-										}`}
-									/>
+						{/* Loading */}
+						{realtorLoading && (
+							<div className="space-y-2">
+								{[60, 45, 70, 50, 55, 65].map((w, i) => (
+									<div key={i} className="h-6 rounded bg-[#f3f4f6] animate-pulse" style={{ width: `${w}%` }} />
+								))}
+							</div>
+						)}
+
+						{/* Error */}
+						{realtorError && (
+							<div className="space-y-3">
+								<p className="text-sm text-red-600">{realtorError}</p>
+								<Button variant="outline" size="sm" onClick={handleStartRealtorAnalysis}>Retry</Button>
+							</div>
+						)}
+
+						{/* Real data */}
+						{realtorData && (
+							<div className="space-y-5">
+								{/* Core property facts */}
+								<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
+									<table className="w-full text-sm">
+										<tbody>
+											{realtorData.flooring.length > 0 && (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Flooring</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.flooring.join(", ")}</td>
+												</tr>
+											)}
+											{!!realtorData.bathroomCount && (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Bathrooms</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.bathroomCount}</td>
+												</tr>
+											)}
+											{realtorData.foundationDetails.length > 0 && (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Foundation</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.foundationDetails.join(", ")}</td>
+												</tr>
+											)}
+											{realtorData.exteriorFeatures.length > 0 && (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Exterior</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.exteriorFeatures.join(", ")}</td>
+												</tr>
+											)}
+											{realtorData.hasFireplace !== null && (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Fireplace</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.hasFireplace ? "Yes" : "None"}</td>
+												</tr>
+											)}
+											{realtorData.cooling.length > 0 && (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Cooling</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.cooling.join(", ")}</td>
+												</tr>
+											)}
+											{realtorData.heating.length > 0 && (
+												<tr>
+													<td className="py-2 pl-3 text-[#605A57]">Heating</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.heating.join(", ")}</td>
+												</tr>
+											)}
+										</tbody>
+									</table>
 								</div>
-								<div className="px-4 pb-4 space-y-2">
-									{zillowStage < 2 && (
-										<div className="flex items-center gap-1 text-[11px] text-[#605A57]">
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-											<span>
-												{zillowStage === 0
-													? "Loading Zillow bathroom photo…"
-													: "AI inferring from Zillow bathroom photo…"}
-											</span>
+
+								{/* Valuation */}
+								{(realtorData.zestimate || realtorData.rentZestimate || realtorData.taxAssessedValue) && (
+									<div>
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">Valuation</p>
+										<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
+											<table className="w-full text-sm">
+												<tbody>
+													{!!realtorData.zestimate && (
+														<tr className="border-b border-[rgba(55,50,47,0.08)]">
+															<td className="py-2 pl-3 text-[#605A57]">Zestimate</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.zestimate.toLocaleString()}</td>
+														</tr>
+													)}
+													{!!realtorData.rentZestimate && (
+														<tr className="border-b border-[rgba(55,50,47,0.08)]">
+															<td className="py-2 pl-3 text-[#605A57]">Rent Estimate</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.rentZestimate.toLocaleString()}/mo</td>
+														</tr>
+													)}
+													{!!realtorData.taxAssessedValue && (
+														<tr className="border-b border-[rgba(55,50,47,0.08)]">
+															<td className="py-2 pl-3 text-[#605A57]">Tax Assessed</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.taxAssessedValue.toLocaleString()}</td>
+														</tr>
+													)}
+													{!!realtorData.taxAnnualAmount && (
+														<tr>
+															<td className="py-2 pl-3 text-[#605A57]">Annual Tax</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.taxAnnualAmount.toLocaleString()}</td>
+														</tr>
+													)}
+												</tbody>
+											</table>
 										</div>
-									)}
-									{zillowStage === 2 && (
+									</div>
+								)}
+
+								{/* Schools */}
+								{realtorData.schools.length > 0 && (
+									<div>
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">Schools</p>
+										<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
+											<table className="w-full text-sm">
+												<tbody>
+													{realtorData.schools.map((s, i) => (
+														<tr key={i} className={i < realtorData.schools.length - 1 ? "border-b border-[rgba(55,50,47,0.08)]" : ""}>
+															<td className="py-2 pl-3 text-[#605A57]">{s.name} <span className="text-[10px]">({s.distance.toFixed(1)}mi)</span></td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{s.rating ? `★${s.rating}` : ""} {s.grades}</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									</div>
+								)}
+
+								{/* Interior analysis */}
+								<div className="rounded-md border border-[rgba(55,50,47,0.08)] p-3 text-sm">
+									{realtorData.hasInteriorPhotos && realtorData.interiorAnalysis ? (
 										<>
-											<ul className="text-xs text-[#37322F] space-y-1">
-												<li>
-													<strong>Bathroom count (visible):</strong> Full bath with walk-in shower and tub
-												</li>
-												<li>
-													<strong>Finish level:</strong> Updated, modern fixtures and tile
-												</li>
-												<li>
-													<strong>Flooring type:</strong> Large-format tile
-												</li>
+											<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">Interior Photos Analysis</p>
+											<ul className="space-y-1 text-[#37322F]">
+												{realtorData.interiorAnalysis.flooringType && <li><strong>Flooring:</strong> {realtorData.interiorAnalysis.flooringType} ({realtorData.interiorAnalysis.flooringCondition})</li>}
+												{realtorData.interiorAnalysis.kitchenFinishes && <li><strong>Kitchen:</strong> {realtorData.interiorAnalysis.kitchenFinishes}</li>}
+												{realtorData.interiorAnalysis.interiorCondition && <li><strong>Condition:</strong> {realtorData.interiorAnalysis.interiorCondition}</li>}
+												{realtorData.interiorAnalysis.notableFeatures.length > 0 && <li><strong>Notable:</strong> {realtorData.interiorAnalysis.notableFeatures.join(", ")}</li>}
 											</ul>
-											<p className="text-[10px] text-[#9CA3AF]">
-												Source:&nbsp;
-												<a
-													href="https://www.zillow.com/homedetails/9808-Coolidge-Dr-McKinney-TX-75072/62574174_zpid/"
-													target="_blank"
-													rel="noreferrer"
-													className="underline"
-												>
-													Zillow listing
-												</a>
-											</p>
 										</>
+									) : (
+										<p className="text-[#605A57] text-xs">Property is off-market — no listing photos available. Structured data from Zillow records.</p>
 									)}
 								</div>
 							</div>
+						)}
 
-							{/* Redfin - Living room */}
-							<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-[#f9fafb] overflow-hidden flex flex-col gap-3">
-								<div className="relative">
-									<img
-										src="/Livingroom.jpg"
-										alt="Living room interior"
-										className="w-full h-48 object-cover"
-									/>
-									<div
-										className={`pointer-events-none absolute inset-0 bg-linear-to-r from-white/10 via-white/40 to-white/10 ${
-											redfinStage >= 2 ? "opacity-0 transition-opacity duration-500" : "animate-pulse"
-										}`}
-									/>
-								</div>
-								<div className="px-4 pb-4 space-y-2">
-									{redfinStage < 2 && (
-										<div className="flex items-center gap-1 text-[11px] text-[#605A57]">
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-											<span>
-												{redfinStage === 0
-													? "Loading Redfin living room photo…"
-													: "AI inferring from Redfin living room photo…"}
-											</span>
-										</div>
-									)}
-									{redfinStage === 2 && (
-										<>
-											<ul className="text-xs text-[#37322F] space-y-1">
-												<li>
-													<strong>Flooring type:</strong> Site-finished hardwood
-												</li>
-												<li>
-													<strong>Interior quality:</strong> Above average (staged, coordinated finishes)
-												</li>
-												<li>
-													<strong>Fireplace:</strong> Built-in gas fireplace with mantel
-												</li>
-											</ul>
-											<p className="text-[10px] text-[#9CA3AF]">
-												Source:&nbsp;
-												<a
-													href="https://www.redfin.com/TX/McKinney/9809-Coolidge-Dr-75072/home/31533482"
-													target="_blank"
-													rel="noreferrer"
-													className="underline"
-												>
-													Redfin listing
-												</a>
-											</p>
-										</>
-									)}
-								</div>
-							</div>
-						</div>
-
-						{redfinStage === 2 && (
+						{(realtorData || realtorError) && !realtorLoading && (
 							<div className="flex items-center justify-end pt-2">
 								<Button
 									type="button"
@@ -758,12 +769,10 @@ function ResearchAgentInner() {
 								</Button>
 							</div>
 						)}
-							</>
-						)}
 					</div>
 				)}
 
-				{step === STEPS.READY_360 && (
+								{step === STEPS.READY_360 && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 space-y-6">
 						<div className="space-y-1">
 							<p className="text-xs text-[#605A57]">
@@ -886,32 +895,50 @@ function ResearchAgentInner() {
 										Interior finishes &amp; quality
 									</h3>
 								</div>
-								<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
-									<table className="w-full text-sm">
-										<tbody>
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Primary bathroom</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Full bath with walk-in shower and tub; updated fixtures and tile</td>
-											</tr>
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Bathroom flooring</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Large-format tile</td>
-											</tr>
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Main living flooring</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Site-finished hardwood</td>
-											</tr>
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Overall interior quality</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Above average; staged with coordinated finishes</td>
-											</tr>
-											<tr>
-												<td className="py-2 pl-3 text-[#605A57]">Fireplace</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Built-in gas fireplace with mantel</td>
-											</tr>
-										</tbody>
-									</table>
-								</div>
+								{realtorData ? (
+									<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
+										<table className="w-full text-sm">
+											<tbody>
+												{realtorData.flooring.length > 0 && (
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">Flooring</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.flooring.join(", ")}</td>
+													</tr>
+												)}
+												{!!realtorData.bathroomCount && (
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">Bathrooms</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.bathroomCount}</td>
+													</tr>
+												)}
+												{realtorData.hasFireplace !== null && (
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">Fireplace</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.hasFireplace ? "Yes" : "None"}</td>
+													</tr>
+												)}
+												{realtorData.interiorAnalysis && (
+													<>
+														{realtorData.interiorAnalysis.kitchenFinishes && (
+															<tr className="border-b border-[rgba(55,50,47,0.08)]">
+																<td className="py-2 pl-3 text-[#605A57]">Kitchen finishes</td>
+																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.interiorAnalysis.kitchenFinishes}</td>
+															</tr>
+														)}
+														{realtorData.interiorAnalysis.interiorCondition && (
+															<tr>
+																<td className="py-2 pl-3 text-[#605A57]">Interior condition</td>
+																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.interiorAnalysis.interiorCondition}</td>
+															</tr>
+														)}
+													</>
+												)}
+											</tbody>
+										</table>
+									</div>
+								) : (
+									<p className="text-xs text-[#605A57] italic">Realtor.com data not available</p>
+								)}
 							</div>
 						</div>
 

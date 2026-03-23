@@ -34,8 +34,7 @@ type AZLeadDetail = {
 	status?: string;
 	lastEnterStageDate?: string;
 	createdDate?: string;
-	leadSource?: { id?: number; name?: string } | string;
-	leadSourceName?: string;
+	leadSourceName?: string; // AZ actual field name
 	assignedTo?: { firstName?: string; lastName?: string; firstname?: string; lastname?: string; name?: string };
 	notes?: string;
 	[key: string]: unknown;
@@ -152,10 +151,7 @@ export default function AgencyZoomLeadDetailPage() {
 
 	const hasAddress = !!(lead.streetAddress && lead.city && lead.state);
 
-	const leadSourceLabel =
-		typeof lead.leadSource === "string"
-			? lead.leadSource
-			: lead.leadSource?.name || lead.leadSourceName || undefined;
+	const leadSourceLabel = lead.leadSourceName || undefined;
 
 	const assignedName =
 		lead.assignedTo?.name ||
@@ -188,7 +184,7 @@ export default function AgencyZoomLeadDetailPage() {
 				<div className="flex items-start justify-between gap-4">
 					<div>
 						<h1 className="text-2xl font-semibold text-[#37322F]">{name}</h1>
-						{lead.status && (
+						{!!lead.status && (
 							<Badge variant="secondary" className="mt-1">
 								{lead.status}
 							</Badge>

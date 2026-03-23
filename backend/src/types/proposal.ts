@@ -71,10 +71,52 @@ export interface GoogleMapsData {
 }
 
 export interface RealtorData {
+  // Legacy fields (kept for backwards compat — populated from best available source)
   flooringType: string;
   bathroomCount: number;
   kitchenFinishes: string;
   interiorCondition: string;
+
+  // Raw RealtyAPI fields
+  flooring: string[];
+  foundationDetails: string[];
+  exteriorFeatures: string[];
+  constructionMaterials: string[];
+  roofType: string | null;
+  parkingFeatures: string[];
+  hasFireplace: boolean | null;
+  cooling: string[];
+  heating: string[];
+
+  // Valuation
+  zestimate: number | null;
+  rentZestimate: number | null;
+  taxAssessedValue: number | null;
+  taxAnnualAmount: number | null;
+  propertyTaxRate: number | null;
+
+  // Schools
+  schools: Array<{
+    name: string;
+    rating: number | null;
+    level: string;
+    distance: number;
+    grades: string;
+  }>;
+
+  // Meta
+  streetViewUrl: string | null;
+  hasInteriorPhotos: boolean;
+  homeStatus: string | null;
+
+  // Interior vision analysis — only populated for active listings with listing photos
+  interiorAnalysis: {
+    flooringType: string | null;
+    flooringCondition: string | null;
+    kitchenFinishes: string | null;
+    interiorCondition: string | null;
+    notableFeatures: string[];
+  } | null;
 }
 
 export interface ResearchReport {

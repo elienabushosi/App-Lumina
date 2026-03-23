@@ -1,4 +1,5 @@
 import express from "express";
+import { runRealtorStep } from "../src/steps/realtor.step.js";
 
 const router = express.Router();
 
@@ -187,6 +188,29 @@ Use "unknown" for roofStyle if not confident. Use false for booleans if not visi
 	} catch (err) {
 		console.error("[property/maps] Error:", err.message);
 		return res.status(500).json({ error: err.message });
+	}
+});
+
+/**
+ * GET /api/property/realtor?address=9808 Coolidge Dr, McKinney, TX 75070
+ * Fetches structured property data from RealtyAPI (Zillow).
+ * For active listings, also runs Gemini vision on interior photos.
+ */
+router.get("/realtor", async (req, res) => {
+	const { address } = req.query;
+	if (!address) {
+		return res.status(400).json({ error: "address is required" });
+	}
+
+	try {
+		const result = await runRealtorStep("route", String(address));
+		if (!result) {
+			return res.status(404).json({ error: "Property not found or REALTY_API_KEY not configured" });
+		}
+		return res.json(result);
+	} catch (err) {
+		console.error("[property/realtor] Error:", err.message);
+		return res.status(500).json({ error: "Realtor lookup failed" });
 	}
 });
 

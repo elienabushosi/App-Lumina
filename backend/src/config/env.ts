@@ -30,6 +30,9 @@ const envSchema = z.object({
   // ATTOM Data API (property research)
   ATTOM_API_KEY: z.string().optional(),
 
+  // RealtyAPI (Zillow data)
+  REALTY_API_KEY: z.string().optional(),
+
   // Optional — already in existing backend, carried forward
   DEEPGRAM_API_KEY: z.string().optional(),
   GOOGLE_MAPS_API_KEY: z.string().optional(),

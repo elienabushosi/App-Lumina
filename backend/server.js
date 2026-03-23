@@ -10,6 +10,10 @@ import callsRoutes from "./routes/calls.js";
 import agencyzoomRoutes from "./routes/agencyzoom.js";
 import propertyRoutes from "./routes/property.js";
 import { startCallLogPoller } from "./lib/ringcentral-call-log-poller.js";
+import { startProposalWorker } from "./src/workers/proposal.worker.js";
+import { closeBrowser } from "./src/agents/browser.js";
+import proposalRoutes from "./src/routes/proposals.js";
+import triggerRoutes from "./src/routes/triggers.js";
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -39,6 +43,8 @@ app.use("/api/ringcentral", ringcentralRoutes);
 app.use("/api/calls", callsRoutes);
 app.use("/api/agencyzoom", agencyzoomRoutes);
 app.use("/api/property", propertyRoutes);
+app.use("/api/proposals", proposalRoutes);
+app.use("/api/triggers", triggerRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -74,4 +80,13 @@ app.listen(PORT, () => {
 	console.log(`🚀 Backend server running on http://localhost:${PORT}`);
 	console.log("🟢 Supabase client initialized");
 	startCallLogPoller();
+	startProposalWorker();
 });
+
+async function shutdown() {
+	console.log("Shutting down...");
+	await closeBrowser();
+	process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
