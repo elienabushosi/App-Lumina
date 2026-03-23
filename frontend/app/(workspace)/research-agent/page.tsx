@@ -954,7 +954,29 @@ function ResearchAgentInner() {
 									<Button
 										type="button"
 										className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white inline-flex items-center gap-2"
-										onClick={() => router.push("/research-browser-run")}
+										onClick={async () => {
+											try {
+												const res = await fetch(`${config.apiUrl}/api/proposals`, {
+													method: "POST",
+													headers: { "Content-Type": "application/json" },
+													body: JSON.stringify({
+														triggeredBy: agencyZoomLeadId ? "agency_zoom" : "apex_lead",
+														agentId: "alex-ridley",
+														leadId: agencyZoomLeadId ?? undefined,
+														property: addrParts ?? { address: effectiveAddress, city: "", state: "", zip: "" },
+														contact: leadName
+															? { firstName: leadName.split(" ")[0] ?? "", lastName: leadName.split(" ").slice(1).join(" ") ?? "" }
+															: { firstName: "", lastName: "" },
+													}),
+												});
+												const json = await res.json();
+												if (json.proposalId) {
+													router.push(`/research-browser-run?proposalId=${json.proposalId}`);
+												}
+											} catch {
+												router.push("/research-browser-run");
+											}
+										}}
 									>
 										<Sparkles className="w-4 h-4" />
 										<span>Fill using AI</span>

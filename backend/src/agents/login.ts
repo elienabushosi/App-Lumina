@@ -1,17 +1,10 @@
 /**
  * Step 8 — Farmers Insurance / Okta login flow.
- *
- * Farmers uses Okta SAML SSO (not standard Salesforce login):
- *   eagent.farmersinsurance.com → eagentsaml.farmersinsurance.com (Okta)
- *   → farmersagent.my.salesforce.com/secur/frontdoor.jsp (SAML handoff)
- *
- * Login quirks discovered during testing:
- *   - Submit button is "I AGREE" (legal terms + submit combined)
- *   - MFA page stays at the same URL as login — can't waitForNavigation
- *   - MFA screen is Okta SMS Authentication widget
- *   - After MFA, Okta redirects to frontdoor.jsp then Salesforce Lightning
+ * Mirrors test-login.ts exactly — same selectors, same flow, same timing.
  */
 import type { BrowserContext } from 'playwright';
+import { writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import { env } from '../config/env.js';
 import logger from '../lib/logger.js';
 import { startTimer } from '../lib/timer.js';
@@ -27,64 +20,71 @@ export async function loginToSalesforce(
   logger.info({ proposalId, step: 'login', status: 'started' });
 
   try {
-    // Use 'load' but catch timeout — some Okta redirect chains don't fire load events cleanly
-    await page.goto(env.SF_LOGIN_URL, { waitUntil: 'load', timeout: 15_000 }).catch(() => {
-      logger.warn({ proposalId, step: 'login', msg: 'goto load timeout — proceeding anyway' });
+    // Same as test-login.ts: domcontentloaded is more reliable through Okta redirect chain
+    await page.goto(env.SF_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {
+      logger.warn({ proposalId, step: 'login', msg: 'goto timeout — proceeding anyway' });
     });
 
-    // If session is already valid, Okta skips login and sends us straight to Salesforce
+    // If session is already valid, Okta skips login and lands on Salesforce directly
     if (page.url().includes('salesforce.com') && !page.url().includes('eagentsaml')) {
       logger.info({ proposalId, step: 'login', status: 'session_valid', durationMs: timer() });
       await page.close();
       return 'success';
     }
 
-    logger.info({ proposalId, step: 'login', msg: 'waiting for username input', url: page.url() });
+    logger.info({ proposalId, step: 'login', msg: 'on login form', url: page.url() });
 
-    // Wait for Okta login form — use specific name attributes to avoid matching cookie banner inputs
-    await page.waitForTimeout(2000); // let page settle after goto
-    const usernameInput = page.locator('input[name="username"]').first();
-    await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
+    // Fill username — same selector as test-login.ts
+    const usernameInput = page.locator('input[name="username"], input[type="text"], #username').first();
+    await usernameInput.waitFor({ timeout: 10_000 });
     await usernameInput.fill(env.SF_USERNAME ?? '');
 
-    const passwordInput = page.locator('input[name="password"]').first();
+    // Fill password
+    const passwordInput = page.locator('input[name="password"], input[type="password"], #password').first();
     await passwordInput.fill(env.SF_PASSWORD ?? '');
 
-    // Click "I AGREE" — Farmers' submit button (legal terms + login combined)
-    await page.locator('button:has-text("I AGREE")').click();
+    // Click "I AGREE" — same selector as test-login.ts
+    const submitBtn = page.locator('button:has-text("I AGREE"), input[value="I AGREE"], button:has-text("I Agree")').first();
+    await submitBtn.click();
 
-    // Wait for the page to respond — MFA stays at same URL, Salesforce redirects away
+    // Wait for navigation or MFA screen
     await page.waitForTimeout(4000);
+    logger.info({ proposalId, step: 'login', status: 'post_submit', url: page.url() });
 
-    const url = page.url();
-    logger.info({ proposalId, step: 'login', status: 'navigated', url });
-
-    // Check if we landed on Salesforce directly (no MFA needed)
-    if (url.includes('salesforce.com') && !url.includes('eagentsaml')) {
+    // Landed on Salesforce directly (no MFA needed)
+    if (page.url().includes('salesforce.com') && !page.url().includes('eagentsaml')) {
       logger.info({ proposalId, step: 'login', status: 'success', durationMs: timer() });
       await page.close();
       return 'success';
     }
 
-    // Still on Okta — check if MFA widget is visible
-    const mfaVisible = await page.locator('text=SMS Authentication').isVisible({ timeout: 3_000 }).catch(() => false);
-    if (mfaVisible) {
-      // Click "Sent" to trigger the SMS code
-      const sentBtn = page.locator('input[value="Send Code"], a:has-text("Send"), button:has-text("Send")').first();
-      if (await sentBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await sentBtn.click();
-        await page.waitForTimeout(2000);
-      }
+    // MFA screen — same selector as test-login.ts
+    const sendCodeBtn = page.locator('button:has-text("Send"), button:has-text("SMS"), button:has-text("Text"), a:has-text("Send Code")').first();
+    const hasSendCode = await sendCodeBtn.isVisible().catch(() => false);
+
+    if (hasSendCode) {
+      await sendCodeBtn.click();
+      await page.waitForTimeout(2000);
       logger.info({ proposalId, step: 'login', status: 'mfa_required', durationMs: timer() });
-      // Keep page open — mfa.ts uses context.pages() to find it
+      // Keep page open — mfa.ts uses context.pages() to find it and inject the code
       return 'mfa_required';
     }
 
-    logger.warn({ proposalId, step: 'login', status: 'failed', url, durationMs: timer() });
+    // Login failed — take screenshot so we can see what went wrong
+    try {
+      mkdirSync('./screenshots', { recursive: true });
+      const buf = await page.screenshot({ type: 'png', fullPage: true });
+      const path = join('./screenshots', `login-failed-${proposalId}.png`);
+      writeFileSync(path, buf);
+      logger.warn({ proposalId, step: 'login', status: 'failed', url: page.url(), screenshotPath: path, durationMs: timer() });
+    } catch {
+      logger.warn({ proposalId, step: 'login', status: 'failed', url: page.url(), durationMs: timer() });
+    }
     await page.close();
     return 'failed';
+
   } catch (err) {
-    logger.error({ proposalId, step: 'login', status: 'failed', durationMs: timer(), err });
+    logger.error({ proposalId, step: 'login', status: 'error', durationMs: timer(), err });
     await page.close().catch(() => {});
     return 'failed';
   }

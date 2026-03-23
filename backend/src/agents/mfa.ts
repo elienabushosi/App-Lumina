@@ -60,14 +60,12 @@ export async function submitMfaCode(
       await page.waitForTimeout(500);
     }
 
-    // Type the full code into the Okta SMS input
-    // Must type BEFORE touching anything else — clicking elsewhere loses focus
+    // Fill the code atomically — keyboard.type() loses focus mid-sequence
     const codeInput = page.locator('input[type="text"], input[type="tel"], input[type="number"]')
       .filter({ hasNot: page.locator('[id*="vendor"], [id*="search"]') })
       .first();
     await codeInput.waitFor({ state: 'visible', timeout: 15_000 });
-    await codeInput.click();
-    await page.keyboard.type(code, { delay: 80 });
+    await codeInput.fill(code);
     await page.waitForTimeout(500);
     logger.info({ proposalId, step: 'mfa', status: 'code_typed' });
 

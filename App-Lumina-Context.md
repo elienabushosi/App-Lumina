@@ -65,17 +65,32 @@ Organization (Tenant)
 
 ### ✅ Phase 1 — Voice Agent (RingCentral → Lumina → Agency Zoom)
 
-**Currently building.** This is the starting point.
+Complete. Call recordings are captured via RingCentral webhook, transcribed with speaker diarization (Deepgram), structured lead fields extracted by Claude AI, and leads created in Agency Zoom via API.
 
-### 🔜 Phase 2 — Browser Agent: Lead Entry (Lumina → Salesforce APEX)
+### ✅ Phase 2 — Browser Agent: APEX Login + Session Persistence
 
-### 🔜 Phase 3 — Property Research (Google Maps, County Appraisal, Zillow/Redfin)
+Complete. Playwright automates the Farmers Insurance Okta SAML login flow (`eagentsaml.farmersinsurance.com`). SMS MFA is handled as a human-in-the-loop gate — the agent enters the code in the Lumina UI. After MFA, the 30-day trust checkbox is checked and the browser session is saved per agent so login is skipped for 30 days.
 
-### 🔜 Phase 4 — Proposal Generation (APEX → Alta → PDF)
+### ✅ Phase 3 — Property Research (CAD + Google Maps + Realtor.com)
+
+Complete. The Research Agent UI walks through three data sources:
+- **CAD** — ATTOM Data API (year built, sq ft, garage, foundation, roof cover, last sale)
+- **Google Maps** — satellite + street view imagery analyzed by Gemini vision (roof style, pool, solar panels)
+- **Realtor.com** — RealtyAPI (Zillow data: flooring, bathrooms, valuation, schools; Gemini interior photo analysis for active listings)
+
+Research results are displayed step-by-step with human confirmation between each source.
+
+### 🔜 Phase 4 — Proposal Generation (APEX → Alta → 360 → PDF)
+
+In progress. The pipeline is wired end-to-end:
+- "Fill using AI" on the Research Agent triggers the APEX browser agent
+- Playwright browser pops up and logs into Salesforce via Okta
+- Gemini Computer Use loop fills Alta (dwelling features) and 360 (replacement cost)
+- **Remaining:** Real Alta + 360 Salesforce URLs needed (requires Playwright codegen session with agent credentials); currently navigating to stub placeholders
 
 ---
 
-## Phase 1 — Voice Agent (Current Focus)
+## Phase 1 — Voice Agent (Complete)
 
 ### What it does
 
@@ -103,7 +118,7 @@ After every inbound or outbound agent call, Lumina automatically:
 
 ---
 
-## Phase 2 — Browser Agent: Lead Entry (Future)
+## Phase 2 — Browser Agent: APEX Login (Complete)
 
 Once the lead exists in Agency Zoom, the Browser Agent takes over and fills in Salesforce APEX.
 
@@ -116,7 +131,7 @@ Once the lead exists in Agency Zoom, the Browser Agent takes over and fills in S
 
 ---
 
-## Phase 3 — Property Research (Future)
+## Phase 3 — Property Research (Complete)
 
 Before or during APEX entry, Lumina will research the property using browser automation and data extraction across:
 
@@ -128,7 +143,7 @@ This data feeds directly into the APEX form fields, eliminating the manual looku
 
 ---
 
-## Phase 4 — Proposal Generation (Future)
+## Phase 4 — Proposal Generation (In Progress)
 
 **Task 2 — Fill (Proposal Creation):**
 

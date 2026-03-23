@@ -37,12 +37,11 @@ cd backend
 npm run dev            # Node with --watch (auto-reload) — port 3002
 ```
 
-### Proposal pipeline server (from backend/)
+### Standalone login test (from backend/)
 ```bash
 cd backend
-npm run dev:proposals  # tsx watch src/server.ts — port 3003
-npm run build:proposals # tsc → dist/
-npm run test:e2e       # POST /api/proposals smoke test + poll until done
+npx tsx src/test-login.ts   # Standalone Farmers SAML login test — opens visible Chromium
+# When MFA screen appears, write code to: screenshots/mfa-code.txt
 ```
 
 ### Install all dependencies
@@ -243,14 +242,21 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 
 **Full run timing:** ~52s total (research: 800ms, login/session restore: 1.4s, Alta Gemini loop: 22s, 360 Gemini loop: 24s)
 
-**What Gemini currently sees:** Blank pages — `navigateToAlta` and `navigateTo360` in `apex.step.ts` are stubs with placeholder URLs. Real Salesforce Lightning URLs needed from a Playwright codegen session with CG Insurance / Jeremy's credentials.
+**What Gemini currently sees:** Blank pages — `navigateToAlta` and `navigateTo360` in `apex.step.ts` are stubs with placeholder URLs. Real Salesforce Lightning URLs needed from a Playwright codegen session with Alex Ridley's credentials.
 
-**Next steps:**
-1. Wire `/research-agent` frontend page → proposal pipeline server (Option A confirmed)
-2. Replace `/research-browser-run` video with live status feed polling `GET /api/proposals/:id`
-3. Add MFA code entry UI to frontend (currently requires `curl POST /api/proposals/:id/mfa`)
-4. Playwright codegen session to capture real `navigateToAlta` + `navigateTo360` URLs
-5. Implement real Maps, Realtor.com research steps (CAD is done via ATTOM)
+**Completed (2026-03-23):**
+- ✅ `/research-agent` "Fill using AI" button now triggers `POST /api/proposals` → gets `proposalId` → routes to `/research-browser-run?proposalId=xxx`
+- ✅ `/research-browser-run` video removed; replaced with spinner + real status polling (`GET /api/proposals/:id` every 3s)
+- ✅ MFA code entry UI built into `/research-browser-run` (amber banner appears after 8s of active state)
+- ✅ Farmers SAML login fixed: correct URL (`eagentsaml.farmersinsurance.com/login.html`), `input[value="I AGREE"]` selector, `domcontentloaded` wait — matches working `test-login.ts` exactly
+- ✅ MFA `keyboard.type()` → `fill()` fix (atomic, doesn't lose focus mid-code)
+- ✅ Real Realtor.com data via RealtyAPI (Zillow); Gemini interior photo analysis for active listings
+- ✅ Backend consolidated: proposal pipeline (formerly port 3003) merged into main Express server (port 3002)
+
+**Remaining:**
+1. Playwright codegen session with Alex's credentials to capture real `navigateToAlta` + `navigateTo360` Salesforce URLs
+2. Run Supabase migration 006 (`research_reports` table) and wire research steps to save to DB
+3. Session saved as `sessions/alex-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
 
 ### CAD Research — ATTOM Data API
 
