@@ -175,7 +175,15 @@ Use "unknown" for roofStyle if not confident. Use false for booleans if not visi
 			.trim();
 		const parsed = JSON.parse(jsonText);
 
-		return res.json({ maps: parsed });
+		return res.json({
+			maps: parsed,
+			images: {
+				satellite: `data:${satellite.mimeType};base64,${satellite.data}`,
+				streetview: streetview
+					? `data:${streetview.mimeType};base64,${streetview.data}`
+					: null,
+			},
+		});
 	} catch (err) {
 		console.error("[property/maps] Error:", err.message);
 		return res.status(500).json({ error: err.message });

@@ -73,12 +73,19 @@ function ResearchAgentInner() {
 			if (a && c && s) setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
 		}
 	}, [searchParams]);
-	const [groundStage, setGroundStage] = useState(0); // 0: loading, 1: inferring, 2: results
-	const [birdsStage, setBirdsStage] = useState(0); // 0: loading, 1: inferring, 2: results
-	const [zillowStage, setZillowStage] = useState(0); // 0: loading, 1: inferring, 2: results
-	const [redfinStage, setRedfinStage] = useState(0); // 0: loading, 1: inferring, 2: results
-	const [googleMapsViewPhase, setGoogleMapsViewPhase] = useState(0); // 0: "Viewing Google maps" loader, 1: show imagery + AI stages
-	const [zillowRedfinViewPhase, setZillowRedfinViewPhase] = useState(0); // 0: "Viewing Zillow & Redfin" loader, 1: show images + AI stages
+	const [zillowStage, setZillowStage] = useState(0);
+	const [redfinStage, setRedfinStage] = useState(0);
+	const [zillowRedfinViewPhase, setZillowRedfinViewPhase] = useState(0);
+	// Real maps state
+	const [mapsLoading, setMapsLoading] = useState(false);
+	const [mapsData, setMapsData] = useState<{
+		roofStyle: string;
+		poolVisible: boolean;
+		solarPanelsVisible: boolean;
+		satelliteImage: string | null;
+		streetviewImage: string | null;
+	} | null>(null);
+	const [mapsError, setMapsError] = useState<string | null>(null);
 
 	// Step 1: After Research click, show CAD loader then auto-advance to attributes
 	useEffect(() => {
@@ -93,41 +100,9 @@ function ResearchAgentInner() {
 		const t = setTimeout(() => setStep(STEPS.DATA_PULLED), 3000);
 		return () => clearTimeout(t);
 	}, [step]);
-	// When entering Google Maps step, show "Viewing Google maps" first, then imagery
-	useEffect(() => {
-		if (step !== STEPS.GOOGLE_MAP_PROMPT) return;
-		setGoogleMapsViewPhase(0);
-	}, [step]);
-
-	useEffect(() => {
-		if (step !== STEPS.GOOGLE_MAP_PROMPT || googleMapsViewPhase !== 0) return;
-		const t = setTimeout(() => setGoogleMapsViewPhase(1), 2200);
-		return () => clearTimeout(t);
-	}, [step, googleMapsViewPhase]);
-
-	// Step 5 (phase 1): Google Maps imagery + AI animation → staged loading → ground results → birds results
-	useEffect(() => {
-		if (step !== STEPS.GOOGLE_MAP_PROMPT || googleMapsViewPhase !== 1) return;
-		setGroundStage(0);
-		setBirdsStage(0);
-
-		const t1 = setTimeout(() => setGroundStage(1), 800); // start inferring ground
-		const t2 = setTimeout(() => {
-			setGroundStage(2); // show ground results
-			setBirdsStage(1); // start inferring birds
-		}, 2200);
-		const t3 = setTimeout(() => setBirdsStage(2), 3600); // show birds results
-
-		return () => {
-			clearTimeout(t1);
-			clearTimeout(t2);
-			clearTimeout(t3);
-		};
-	}, [step, googleMapsViewPhase]);
-
 	const defaultAddress = "9808 Coolidge Dr. Mckinney,Tx 75070";
 	const effectiveAddress = address || defaultAddress;
-	const analysisComplete = birdsStage === 2;
+	const analysisComplete = mapsData !== null;
 	const zillowRedfinComplete = redfinStage === 2;
 
 	// Build attributes from real ATTOM data only
@@ -181,10 +156,43 @@ function ResearchAgentInner() {
 		};
 	}, [step, zillowRedfinViewPhase]);
 
+	const handleStartMapsAnalysis = async () => {
+		setMapsData(null);
+		setMapsError(null);
+		setMapsLoading(true);
+		setStep(STEPS.GOOGLE_MAP_PROMPT);
+
+		try {
+			const fullAddress = addrParts
+				? `${addrParts.address}, ${addrParts.city}, ${addrParts.state} ${addrParts.zip}`
+				: effectiveAddress;
+			const params = new URLSearchParams({ address: fullAddress });
+			const res = await fetch(`${config.apiUrl}/api/property/maps?${params}`);
+			const json = await res.json();
+			if (!res.ok) {
+				setMapsError(json.error ?? `API error ${res.status}`);
+			} else {
+				setMapsData({
+					roofStyle: json.maps?.roofStyle ?? "unknown",
+					poolVisible: Boolean(json.maps?.poolVisible),
+					solarPanelsVisible: Boolean(json.maps?.solarPanelsVisible),
+					satelliteImage: json.images?.satellite ?? null,
+					streetviewImage: json.images?.streetview ?? null,
+				});
+			}
+		} catch (err) {
+			setMapsError(err instanceof Error ? err.message : "Failed to fetch map analysis.");
+		} finally {
+			setMapsLoading(false);
+		}
+	};
+
 	const handleResearch = async () => {
 		setAddress(effectiveAddress);
 		setCadData(null);
 		setCadError(null);
+		setMapsData(null);
+		setMapsError(null);
 		setStep(STEPS.CAD_LOADER);
 
 		if (!addrParts) {
@@ -391,7 +399,7 @@ function ResearchAgentInner() {
 							<div className="flex gap-3">
 								<Button
 									type="button"
-									onClick={() => setStep(STEPS.GOOGLE_MAP_PROMPT)}
+									onClick={handleStartMapsAnalysis}
 									className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white"
 								>
 									Yes, continue
@@ -420,7 +428,7 @@ function ResearchAgentInner() {
 						<div className="flex justify-end gap-3">
 							<Button
 								type="button"
-								onClick={() => setStep(STEPS.GOOGLE_MAP_PROMPT)}
+								onClick={handleStartMapsAnalysis}
 								className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white"
 							>
 								Yes, continue
@@ -429,216 +437,124 @@ function ResearchAgentInner() {
 					</div>
 				)}
 
-				{/* Google Maps step: first "Viewing Google maps" (skeleton/thinking), then imagery + AI */}
+				{/* Google Maps step — real satellite + street view imagery + Gemini analysis */}
 				{step === STEPS.GOOGLE_MAP_PROMPT && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 space-y-6">
-						{googleMapsViewPhase === 0 ? (
-							/* Loading / thinking state: logo + dots + "Viewing Google maps" */
-							<div className="flex flex-col items-center justify-center py-12 gap-4">
+						{/* Header */}
+						<div className="flex items-center justify-between gap-4">
+							<div className="flex items-center gap-2">
 								<img
 									src="/logos/Google-Maps-Logo.jpg"
 									alt="Google Maps"
-									className="h-10 w-auto object-contain"
+									className="h-8 w-auto object-contain"
 								/>
-								<div className="flex items-center gap-2 text-sm text-[#605A57]">
-									<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
-									<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
-									<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-									<span className="ml-1">Viewing Google maps</span>
-								</div>
 							</div>
-						) : (
-							<>
-						<div className="space-y-2">
-							<div className="flex items-center justify-between gap-4">
-								<div className="flex items-center gap-2">
-									<img
-										src="/logos/Google-Maps-Logo.jpg"
-										alt="Google Maps"
-										className="h-8 w-auto object-contain"
-									/>
-								</div>
-								<div className="text-xs text-[#605A57] text-right">
-									Using Google Maps bird&apos;s eye and street view imagery to enrich property attributes.
-								</div>
-							</div>
-							<div className="flex items-center gap-1 text-xs text-[#605A57]">
-								<span
-									className={`w-2 h-2 rounded-full bg-[#6C70BA] ${
-										analysisComplete ? "" : "animate-bounce"
-									}`}
-								/>
-								<span>{analysisComplete ? "Analysis complete" : "AI is analyzing imagery…"}</span>
-							</div>
-						</div>
-						<div className="grid gap-6 md:grid-cols-2">
-							{/* Ground view analysis */}
-							<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-[#f9fafb] overflow-hidden flex flex-col gap-3">
-								<div className="relative">
-									<img
-										src="/9808CoolidgeGoogleMapsGrounds.png"
-										alt="9808 Coolidge Dr. ground view"
-										className="w-full h-48 object-cover"
-									/>
-									<div
-										className={`pointer-events-none absolute inset-0 bg-linear-to-r from-white/10 via-white/40 to-white/10 ${
-											groundStage >= 2 ? "opacity-0 transition-opacity duration-500" : "animate-pulse"
-										}`}
-									/>
-								</div>
-								<div className="px-4 pb-4 space-y-2">
-									{groundStage < 2 && (
-										<div className="flex items-center gap-1 text-[11px] text-[#605A57]">
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-											<span>AI inferring from ground view…</span>
-										</div>
-									)}
-									<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">
-										Ground view (structure &amp; exterior walls)
-									</p>
-									{groundStage === 0 && (
-										<ul className="text-xs text-[#9CA3AF] space-y-1">
-											<li>Loading Google Maps street view…</li>
-										</ul>
-									)}
-									{groundStage === 1 && (
-										<ul className="text-xs text-[#9CA3AF] space-y-1">
-											<li>Inferring stories (1 vs 2)…</li>
-											<li>Inferring foundation type from visible slab/vents…</li>
-											<li>Scanning exterior wall materials and coverage…</li>
-										</ul>
-									)}
-									{groundStage === 2 && (
-										<ul className="text-xs text-[#37322F] space-y-1">
-											<li>
-												<strong>Stories:</strong> 1-story
-											</li>
-											<li>
-												<strong>Foundation type:</strong> Slab-on-grade (no visible pier &amp; beam vents)
-											</li>
-											<li>
-												<strong>Exterior wall materials (approx.):</strong> ~90% brick veneer, ~10% siding/trim
-											</li>
-										</ul>
-									)}
-									<p className="text-[10px] text-[#9CA3AF]">
-										Source:{" "}
-										<a
-											href="https://www.google.com/maps/@33.1860996,-96.7464814,3a,28y,7.79h,90.47t/data=!3m7!1e1!3m5!1sxE2sj-cJiEbvnzsTw1VNig!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com%2Fv1%2Fthumbnail%3Fcb_client%3Dmaps_sv.tactile%26w%3D900%26h%3D600%26pitch%3D-0.4686024982608643%26panoid%3DxE2sj-cJiEbvnzsTw1VNig%26yaw%3D7.788272456148571!7i16384!8i8192?entry=ttu&g_ep=EgoyMDI2MDMwNC4xIKXMDSoASAFQAw%3D%3D"
-											target="_blank"
-											rel="noreferrer"
-											className="underline"
-										>
-											Google Maps street view
-										</a>
-									</p>
-								</div>
-							</div>
-
-							{/* Bird&apos;s eye view analysis */}
-							<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-[#f9fafb] overflow-hidden flex flex-col gap-3">
-								<div className="relative">
-									<img
-										src="/9808CoolidgeGooglemapsBirds.png"
-										alt="9808 Coolidge Dr. bird's eye view"
-										className="w-full h-48 object-cover"
-									/>
-									<div
-										className={`pointer-events-none absolute inset-0 bg-linear-to-r from-white/10 via-white/40 to-white/10 ${
-											birdsStage >= 2 ? "opacity-0 transition-opacity duration-500" : "animate-pulse"
-										}`}
-									/>
-								</div>
-								<div className="px-4 pb-4 space-y-2">
-									{birdsStage < 2 && (
-										<div className="flex items-center gap-1 text-[11px] text-[#605A57]">
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
-											<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-											<span>AI inferring from aerial view…</span>
-										</div>
-									)}
-									<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">
-										Bird&apos;s eye view (roof &amp; site features)
-									</p>
-									{birdsStage === 0 && (
-										<ul className="text-xs text-[#9CA3AF] space-y-1">
-											<li>Loading Google Maps aerial view…</li>
-										</ul>
-									)}
-									{birdsStage === 1 && (
-										<ul className="text-xs text-[#9CA3AF] space-y-1">
-											<li>Inferring roof covering type…</li>
-											<li>Inferring roof style (hip vs gable)…</li>
-											<li>Scanning for solar panels, pools, trampolines…</li>
-										</ul>
-									)}
-									{birdsStage === 2 && (
-										<ul className="text-xs text-[#37322F] space-y-1">
-											<li>
-												<strong>Roof covering type:</strong> Architectural asphalt shingle
-											</li>
-											<li>
-												<strong>Roof style:</strong> Hip roof
-											</li>
-											<li>
-												<strong>Solar panels:</strong> None visible
-											</li>
-											<li>
-												<strong>Trampoline:</strong> None visible
-											</li>
-											<li>
-												<strong>Swimming pool:</strong> None visible
-											</li>
-										</ul>
-									)}
-									<p className="text-[10px] text-[#9CA3AF]">
-										Source:{" "}
-										<a
-											href="https://www.google.com/maps/place/9808+Coolidge+Dr,+McKinney,+TX+75072/@33.1863138,-96.746472,48m/data=!3m1!1e3!4m6!3m5!1s0x864c15f4fcb4428b:0x305d6fff4c8553a!8m2!3d33.1863192!4d-96.7464623!16s%2Fg%2F11c2f2ysp3?entry=ttu&g_ep=EgoyMDI2MDMwNC4xIKXMDSoASAFQAw%3D%3D"
-											target="_blank"
-											rel="noreferrer"
-											className="underline"
-										>
-											Google Maps aerial view
-										</a>
-									</p>
-								</div>
+							<div className="flex items-center gap-2 text-xs text-[#605A57]">
+								{mapsLoading && (
+									<>
+										<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
+										<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
+										<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
+										<span>Fetching imagery &amp; analyzing…</span>
+									</>
+								)}
+								{mapsData && <span>Analysis complete</span>}
+								{mapsError && <span className="text-red-600">Analysis failed</span>}
 							</div>
 						</div>
 
-						<div className="pt-2 space-y-3">
-							{analysisComplete && (
-								<div className="space-y-2">
-									<p className="text-sm font-medium text-[#37322F]">
-										Are you ready to continue with Zillow &amp; Redfin?
-									</p>
-									<p className="text-sm text-[#605A57]">
-										We&apos;ll use a powerful vision model to infer interior finishes, bathrooms, flooring
-										types, overall interior quality, and more.
-									</p>
-									<div className="flex justify-end gap-3">
-										<Button
-											type="button"
-											onClick={() => setStep(STEPS.DATA_GATHERED)}
-											className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white"
-										>
-											Yes, continue
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => setStep(STEPS.READY_360)}
-										>
-											Skip
-										</Button>
+						{/* Error state */}
+						{mapsError && (
+							<div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+								<span className="font-medium">Maps analysis failed:</span> {mapsError}
+							</div>
+						)}
+
+						{/* Images — skeleton while loading, real images when done */}
+						{(mapsLoading || mapsData) && (
+							<div className="grid gap-6 md:grid-cols-2">
+								{/* Street view */}
+								<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-[#f9fafb] overflow-hidden flex flex-col gap-3">
+									<div className="relative">
+										{mapsData?.streetviewImage ? (
+											<img
+												src={mapsData.streetviewImage}
+												alt="Street view"
+												className="w-full h-48 object-cover"
+											/>
+										) : (
+											<div className="w-full h-48 bg-[#f3f4f6] animate-pulse" />
+										)}
+									</div>
+									<div className="px-4 pb-4 space-y-2">
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">Street view (exterior)</p>
+										{cadData ? (
+											<ul className="text-xs text-[#37322F] space-y-1">
+												{cadData.stories != null && <li><strong>Stories:</strong> {cadData.stories}</li>}
+												{cadData.exteriorWallType && <li><strong>Exterior wall:</strong> {cadData.exteriorWallType}</li>}
+												{cadData.foundationType && <li><strong>Foundation:</strong> {cadData.foundationType}</li>}
+												{cadData.garageType && <li><strong>Garage:</strong> {cadData.garageType}</li>}
+											</ul>
+										) : (
+											<p className="text-xs text-[#9CA3AF]">No CAD data available.</p>
+										)}
 									</div>
 								</div>
-							)}
-						</div>
-							</>
+
+								{/* Aerial / satellite */}
+								<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-[#f9fafb] overflow-hidden flex flex-col gap-3">
+									<div className="relative">
+										{mapsData?.satelliteImage ? (
+											<img
+												src={mapsData.satelliteImage}
+												alt="Aerial view"
+												className="w-full h-48 object-cover"
+											/>
+										) : (
+											<div className="w-full h-48 bg-[#f3f4f6] animate-pulse" />
+										)}
+									</div>
+									<div className="px-4 pb-4 space-y-2">
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">Aerial view (roof &amp; site)</p>
+										{mapsLoading && (
+											<p className="text-xs text-[#9CA3AF]">Gemini is analyzing the roof and site…</p>
+										)}
+										{mapsData && (
+											<ul className="text-xs text-[#37322F] space-y-1">
+												<li><strong>Roof style:</strong> {mapsData.roofStyle}</li>
+												<li><strong>Pool:</strong> {mapsData.poolVisible ? "Visible" : "None visible"}</li>
+												<li><strong>Solar panels:</strong> {mapsData.solarPanelsVisible ? "Visible" : "None visible"}</li>
+											</ul>
+										)}
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* Continue — shown once analysis is done */}
+						{mapsData && (
+							<div className="pt-2 space-y-3">
+								<p className="text-sm font-medium text-[#37322F]">Are you ready to continue with Realtor.com?</p>
+								<p className="text-sm text-[#605A57]">
+									We&apos;ll use a vision model to infer interior finishes, bathrooms, flooring types, and overall interior quality.
+								</p>
+								<div className="flex gap-3">
+									<Button
+										type="button"
+										onClick={() => setStep(STEPS.DATA_GATHERED)}
+										className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white"
+									>
+										Yes, continue
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setStep(STEPS.READY_360)}
+									>
+										Skip
+									</Button>
+								</div>
+							</div>
 						)}
 					</div>
 				)}
