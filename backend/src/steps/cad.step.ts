@@ -39,8 +39,13 @@ export async function runCADStep(
 
     const summary = property.summary as Record<string, unknown> | undefined;
     const building = property.building as Record<string, unknown> | undefined;
+    const area = property.area as Record<string, unknown> | undefined;
+    const identifier = property.identifier as Record<string, unknown> | undefined;
+    const sale = property.sale as Record<string, unknown> | undefined;
     const size = building?.size as Record<string, unknown> | undefined;
     const parking = building?.parking as Record<string, unknown> | undefined;
+    const construction = building?.construction as Record<string, unknown> | undefined;
+    const bldgSummary = building?.summary as Record<string, unknown> | undefined;
 
     const result: CADData = {
       propertyType: (summary?.propclass as string) ?? 'Unknown',
@@ -48,6 +53,15 @@ export async function runCADStep(
       livingAreaSqft: (size?.livingsize as number) ?? 0,
       totalBuildingSqft: (size?.grosssize as number) ?? 0,
       attachedGarageSqft: (parking?.prkgSize as number) ?? 0,
+      stories: (bldgSummary?.levels as number) ?? undefined,
+      foundationType: (construction?.foundationtype as string) ?? undefined,
+      exteriorWallType: (construction?.wallType as string) ?? undefined,
+      garageType: (parking?.garagetype as string) ?? undefined,
+      roofCover: (construction?.roofcover as string) ?? undefined,
+      county: (area?.countrysecsubd as string) ?? undefined,
+      apn: (identifier?.apn as string) ?? undefined,
+      lastSaleAmount: ((sale?.amount as Record<string, unknown>)?.saleamt as number) ?? undefined,
+      lastSaleDate: (sale?.salesearchdate as string) ?? undefined,
     };
 
     logger.info({ proposalId, step: 'cad', status: 'complete', result });

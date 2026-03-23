@@ -38,6 +38,11 @@ type CadData = {
 	livingAreaSqft: number | null;
 	totalBuildingSqft: number | null;
 	attachedGarageSqft: number | null;
+	stories: number | null;
+	foundationType: string | null;
+	exteriorWallType: string | null;
+	garageType: string | null;
+	roofCover: string | null;
 	county: string | null;
 	apn: string | null;
 	lastSaleAmount: number | null;
@@ -130,9 +135,14 @@ function ResearchAgentInner() {
 		? [
 			{ label: "Type", value: cadData.propertyType ?? "—" },
 			{ label: "Year built", value: cadData.yearBuilt?.toString() ?? "—" },
+			{ label: "Stories", value: cadData.stories?.toString() ?? "—" },
 			{ label: "Living area", value: cadData.livingAreaSqft ? `${cadData.livingAreaSqft.toLocaleString()} sq ft` : "—" },
 			{ label: "Total building", value: cadData.totalBuildingSqft ? `${cadData.totalBuildingSqft.toLocaleString()} sq ft` : "—" },
-			{ label: "Attached Garage", value: cadData.attachedGarageSqft ? `${cadData.attachedGarageSqft.toLocaleString()} sq ft` : "—" },
+			{ label: "Attached garage", value: cadData.attachedGarageSqft ? `${cadData.attachedGarageSqft.toLocaleString()} sq ft` : "—" },
+			{ label: "Garage type", value: cadData.garageType ?? "—" },
+			{ label: "Foundation", value: cadData.foundationType ?? "—" },
+			{ label: "Exterior wall", value: cadData.exteriorWallType ?? "—" },
+			{ label: "Roof cover", value: cadData.roofCover ?? "—" },
 			...(cadData.county ? [{ label: "County", value: cadData.county }] : []),
 			...(cadData.apn ? [{ label: "APN", value: cadData.apn }] : []),
 			...(cadData.lastSaleAmount ? [{ label: "Last sale", value: `$${cadData.lastSaleAmount.toLocaleString()}${cadData.lastSaleDate ? ` on ${cadData.lastSaleDate}` : ""}` }] : []),

@@ -45,10 +45,18 @@ export interface CADData {
   livingAreaSqft: number;
   totalBuildingSqft: number;
   attachedGarageSqft: number;
-  coveredPorchPatioSqft?: number;
+  // Structure fields (feed directly into Alta + 360 forms)
+  stories?: number;
+  foundationType?: string;
+  exteriorWallType?: string;
+  garageType?: string;
+  roofCover?: string;
+  // Sale / value
   lastSaleAmount?: number;
   lastSaleDate?: string;
-  estimatedValue?: number;
+  // Location
+  county?: string;
+  apn?: string;
 }
 
 export interface GoogleMapsData {

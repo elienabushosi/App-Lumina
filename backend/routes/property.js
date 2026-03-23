@@ -54,6 +54,8 @@ router.get("/cad", async (req, res) => {
 		const building = property.building ?? {};
 		const size = building.size ?? {};
 		const parking = building.parking ?? {};
+		const construction = building.construction ?? {};
+		const bldgSummary = building.summary ?? {};
 		const area = property.area ?? {};
 		const identifier = property.identifier ?? {};
 		const sale = property.sale ?? {};
@@ -64,6 +66,11 @@ router.get("/cad", async (req, res) => {
 			livingAreaSqft: size.livingsize ?? null,
 			totalBuildingSqft: size.grosssize ?? null,
 			attachedGarageSqft: parking.prkgSize ?? null,
+			stories: bldgSummary.levels ?? null,
+			foundationType: construction.foundationtype ?? null,
+			exteriorWallType: construction.wallType ?? null,
+			garageType: parking.garagetype ?? null,
+			roofCover: construction.roofcover ?? null,
 			county: area.countrysecsubd ?? null,
 			apn: identifier.apn ?? null,
 			lastSaleAmount: sale.amount?.saleamt ?? null,
