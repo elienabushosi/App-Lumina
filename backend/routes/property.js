@@ -84,4 +84,102 @@ router.get("/cad", async (req, res) => {
 	}
 });
 
+/**
+ * GET /api/property/maps?address=9808+Coolidge+Dr,+McKinney,+TX+75070
+ * Fetches satellite + street view images and runs Gemini vision analysis.
+ * Returns roof style, pool visible, solar panels visible.
+ */
+router.get("/maps", async (req, res) => {
+	const { address } = req.query;
+	if (!address) {
+		return res.status(400).json({ error: "address is required" });
+	}
+
+	const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
+	const geminiKey = process.env.GEMINI_API_KEY;
+	if (!mapsKey || !geminiKey) {
+		return res
+			.status(500)
+			.json({ error: "GOOGLE_MAPS_API_KEY or GEMINI_API_KEY not configured" });
+	}
+
+	try {
+		const encoded = encodeURIComponent(address);
+		const satelliteUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=19&size=640x640&maptype=satellite&key=${mapsKey}`;
+		const streetviewUrl = `https://maps.googleapis.com/maps/api/streetview?location=${encoded}&size=640x480&fov=90&key=${mapsKey}`;
+
+		// Fetch both images in parallel
+		const [satRes, svRes] = await Promise.all([
+			fetch(satelliteUrl),
+			fetch(streetviewUrl),
+		]);
+
+		if (!satRes.ok) {
+			return res
+				.status(502)
+				.json({ error: `Satellite image fetch failed (${satRes.status})` });
+		}
+
+		async function toBase64(r) {
+			const buf = await r.arrayBuffer();
+			return {
+				data: Buffer.from(buf).toString("base64"),
+				mimeType: r.headers.get("content-type") ?? "image/jpeg",
+			};
+		}
+
+		const [satellite, streetview] = await Promise.all([
+			toBase64(satRes),
+			svRes.ok ? toBase64(svRes) : null,
+		]);
+
+		const { GoogleGenAI } = await import("@google/genai");
+		const ai = new GoogleGenAI({ apiKey: geminiKey });
+
+		const prompt = `You are analyzing satellite and street view images of a residential property.
+Return ONLY a JSON object with exactly these fields — no markdown, no explanation:
+
+{
+  "roofStyle": "<hip | gable | flat | mansard | shed | gambrel | unknown>",
+  "poolVisible": <true | false>,
+  "solarPanelsVisible": <true | false>
+}
+
+- roofStyle: shape of the roof visible from satellite or street view
+- poolVisible: true if a swimming pool is visible in the satellite image
+- solarPanelsVisible: true if solar panels are visible on the roof
+
+Use "unknown" for roofStyle if not confident. Use false for booleans if not visible.`;
+
+		const imageParts = [
+			{ inlineData: { data: satellite.data, mimeType: satellite.mimeType } },
+			...(streetview
+				? [{ inlineData: { data: streetview.data, mimeType: streetview.mimeType } }]
+				: []),
+		];
+
+		const response = await ai.models.generateContent({
+			model: "gemini-2.5-flash",
+			contents: [
+				{
+					role: "user",
+					parts: [{ text: prompt }, ...imageParts],
+				},
+			],
+		});
+
+		const raw = response.text?.trim() ?? "";
+		const jsonText = raw
+			.replace(/^```(?:json)?\s*/i, "")
+			.replace(/\s*```$/, "")
+			.trim();
+		const parsed = JSON.parse(jsonText);
+
+		return res.json({ maps: parsed });
+	} catch (err) {
+		console.error("[property/maps] Error:", err.message);
+		return res.status(500).json({ error: err.message });
+	}
+});
+
 export default router;
