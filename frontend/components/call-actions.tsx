@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { config } from "@/lib/config";
-import { Loader2 } from "lucide-react";
+import { Loader2, FileText } from "lucide-react";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 
 type Props = {
@@ -93,6 +93,18 @@ export function CallActions({
 		}
 	};
 
+	const handleStartProposal = () => {
+		// TODO: use real address from call's lead_payload once wired to backend
+		// For now, use dummy test property: 9808 Coolidge Dr, McKinney TX 75070
+		const params = new URLSearchParams({
+			address: "9808 Coolidge Dr",
+			city: "McKinney",
+			state: "TX",
+			zip: "75070",
+		});
+		router.push(`/research-agent?${params.toString()}`);
+	};
+
 	return (
 		<div className="flex flex-col gap-2 items-start">
 			<div className="flex items-center gap-2 flex-wrap">
@@ -124,6 +136,13 @@ export function CallActions({
 					) : (
 						"Send to AgencyZoom"
 					)}
+				</Button>
+				<Button
+					onClick={handleStartProposal}
+					className="bg-[#6c70ba] hover:bg-[#5a5ea8] text-white"
+				>
+					<FileText className="h-4 w-4 mr-2" />
+					Start Proposal
 				</Button>
 			</div>
 			{message && (

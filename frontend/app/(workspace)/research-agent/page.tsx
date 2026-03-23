@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,10 +44,23 @@ const DUMMY_ATTRIBUTES = [
 const COLLIN_CAD_SOURCE_URL =
 	"https://esearch.collincad.org/Property/View/2516503?year=2026&ownerId=558191";
 
-export default function ResearchAgentPage() {
+function ResearchAgentInner() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [step, setStep] = useState(STEPS.INPUT);
+
 	const [address, setAddress] = useState("");
+
+	// Pre-fill address from query params (e.g. navigated from call detail "Start Proposal")
+	useEffect(() => {
+		const parts = [
+			searchParams.get("address"),
+			searchParams.get("city"),
+			searchParams.get("state"),
+			searchParams.get("zip"),
+		].filter(Boolean);
+		if (parts.length > 0) setAddress(parts.join(", "));
+	}, [searchParams]);
 	const [groundStage, setGroundStage] = useState(0); // 0: loading, 1: inferring, 2: results
 	const [birdsStage, setBirdsStage] = useState(0); // 0: loading, 1: inferring, 2: results
 	const [zillowStage, setZillowStage] = useState(0); // 0: loading, 1: inferring, 2: results
@@ -938,5 +951,13 @@ export default function ResearchAgentPage() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+export default function ResearchAgentPage() {
+	return (
+		<Suspense>
+			<ResearchAgentInner />
+		</Suspense>
 	);
 }
