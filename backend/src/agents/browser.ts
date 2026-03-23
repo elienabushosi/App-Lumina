@@ -27,7 +27,7 @@ export async function getBrowser(): Promise<Browser> {
   if (!browser || !browser.isConnected()) {
     logger.info({ msg: 'Launching Chromium' });
     browser = await chromium.launch({
-      headless: true,
+      headless: false, // TODO: switch back to true once session persistence is working
       args: ['--no-sandbox', '--disable-dev-shm-usage'],
     });
     browser.on('disconnected', () => {

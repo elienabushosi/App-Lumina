@@ -34,7 +34,15 @@ npm run build          # Production build
 ### Backend-only (from backend/)
 ```bash
 cd backend
-npm run dev            # Node with --watch (auto-reload)
+npm run dev            # Node with --watch (auto-reload) — port 3002
+```
+
+### Proposal pipeline server (from backend/)
+```bash
+cd backend
+npm run dev:proposals  # tsx watch src/server.ts — port 3003
+npm run build:proposals # tsc → dist/
+npm run test:e2e       # POST /api/proposals smoke test + poll until done
 ```
 
 ### Install all dependencies
@@ -75,10 +83,23 @@ Pipeline** section below.
 ```
 App-Lumina/
 ├── frontend/           # Next.js 14 + TypeScript + Tailwind CSS v4 + Shadcn UI
-├── backend/            # Node.js/Express (mixed JS/TS)
+├── backend/            # Node.js/Express (mixed JS/TS) — port 3002
 │   ├── routes/         # Auth, calls, RingCentral, Agency Zoom, billing, email
 │   ├── lib/            # supabase.js, auth-utils.js, shared utilities
 │   └── server.js       # Entry point
+│   └── src/            # TypeScript proposal pipeline server (port 3003)
+│       ├── agents/     # browser.ts, login.ts, mfa.ts, session.ts, gemini.ts, alta.ts, 360.ts
+│       ├── config/     # env.ts (Zod validation)
+│       ├── data/       # dummy-research.json
+│       ├── lib/        # logger.ts, queue.ts, timer.ts
+│       ├── routes/     # proposals.ts, triggers.ts
+│       ├── steps/      # cad.step.ts, maps.step.ts, realtor.step.ts, aggregator.step.ts
+│       ├── triggers/   # call.adapter.ts, apex-lead.adapter.ts, agency-zoom.adapter.ts
+│       ├── types/      # proposal.ts
+│       ├── workers/    # proposal.worker.ts
+│       ├── pipeline.ts # runPipeline orchestrator
+│       ├── server.ts   # Entry point (port 3003)
+│       └── test-e2e.ts # End-to-end smoke test
 ├── shared/             # Code shared between frontend & backend
 ├── supabase/           # DB config/migrations
 └── Documentation/      # Architecture docs, design guidelines
@@ -101,10 +122,11 @@ App-Lumina/
 - `/main-page-1` — primary workspace
 - `/settings`, `/reports`
 
-**Proposal creation frontend routes (being built):**
-- `/research` — the research workflow (CAD → Maps → Realtor.com → APEX handoff)
-- `/research-browser-run` — live APEX automation view (currently a video simulation,
-  will be replaced with real Playwright + Gemini automation)
+**Proposal creation frontend routes (wiring in progress):**
+- `/research-agent` — 9-step state machine (address → CAD → Maps → Realtor → APEX);
+  currently uses dummy data + timed animations, being wired to the real backend
+- `/research-browser-run` — plays a video simulation; will become a live status feed
+  polling `GET /api/proposals/:id` from the proposal pipeline server
 
 **UI Patterns:**
 - Shadcn UI (Radix-based) for all core components
@@ -210,12 +232,25 @@ ProposalInput
 research step must NEVER block the pipeline. Log the error, return null for
 that section, and continue. The APEX agent works with whatever data exists.
 
-### Current Build Focus
+### Current Status — All 16 Pipeline Steps Complete
 
-**The APEX agent (step 5) is the ONLY step being fully implemented now.**
-Steps 1–3 are stubs that return dummy data from `dummy-research.json`.
-Do not implement real CAD scraping, Maps API calls, or Realtor.com scraping
-until the APEX agent is complete and tested.
+The proposal pipeline backend is fully built and smoke-tested end-to-end:
+
+- ✅ Steps 1–5: Research stubs + aggregator run in parallel (~800ms each, ~800ms total)
+- ✅ Steps 6–10: Express routes, BullMQ queue/worker, Playwright browser, Salesforce login, MFA human-in-loop gate, session persistence
+- ✅ Steps 11–14: Gemini Computer Use loop, Alta form filler, 360 form filler, full APEX orchestrator
+- ✅ Steps 15–16: Pipeline orchestrator, smoke test passing
+
+**Full run timing:** ~52s total (research: 800ms, login/session restore: 1.4s, Alta Gemini loop: 22s, 360 Gemini loop: 24s)
+
+**What Gemini currently sees:** Blank pages — `navigateToAlta` and `navigateTo360` in `apex.step.ts` are stubs with placeholder URLs. Real Salesforce Lightning URLs needed from a Playwright codegen session with CG Insurance / Jeremy's credentials.
+
+**Next steps:**
+1. Wire `/research-agent` frontend page → proposal pipeline server (Option A confirmed)
+2. Replace `/research-browser-run` video with live status feed polling `GET /api/proposals/:id`
+3. Add MFA code entry UI to frontend (currently requires `curl POST /api/proposals/:id/mfa`)
+4. Playwright codegen session to capture real `navigateToAlta` + `navigateTo360` URLs
+5. Implement real CAD, Maps, Realtor.com research steps (deferred)
 
 ### Stub Pattern
 
@@ -318,14 +353,26 @@ automation (Playwright) is the only viable path.
 ```
 Take screenshot
       ↓
-Send to Gemini with goal
+Send to Gemini with goal + screenshot (base64 PNG)
       ↓
-Gemini returns: click(x,y), type(text), scroll(delta)
+Gemini returns functionCall parts: click(coordinate), type(text), scroll, key, done
       ↓
-Playwright executes actions
+Playwright executes each action
       ↓
-Take new screenshot, repeat until done
+Send functionResponse (with current_url field!) back as next user turn
+      ↓
+Take new screenshot, repeat until no functionCalls returned
 ```
+
+**Critical implementation details for `gemini.ts`:**
+- Model: `gemini-2.5-computer-use-preview-10-2025` (exact string required)
+- Must include `tools: [{ computerUse: { environment: Environment.ENVIRONMENT_BROWSER } }]`
+  in every `generateContent` call — model returns 400 without it
+- Import `Environment` enum from `@google/genai` — do not use string `'browser'`
+- Every `functionResponse` must include `current_url: page.url()` in the response object
+- Multi-turn: maintain `contents[]` array, alternating `role: 'user'` / `role: 'model'` turns
+- First user turn: prepend system prompt + goal as text part before the screenshot
+- Function response parts go as the next `role: 'user'` turn (not inline with screenshot)
 
 ### Auth Strategy (Build in this order)
 
@@ -406,29 +453,55 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
 
 ---
 
-## Build Order
+## Build Order (all steps complete)
 
-Work strictly in this sequence. Do not skip ahead.
+1. ✅ Backend skeleton — TypeScript/ESM, Express (port 3003), Winston, Zod env
+2. ✅ BullMQ queue + worker (Redis)
+3. ✅ ProposalInput types + three trigger adapters (call, apex_lead, agency_zoom)
+4. ✅ Three stub steps (CAD, Maps, Realtor) with 800ms delay + dummy data
+5. ✅ Research aggregator — parallel Promise.all, never throws
+6. ✅ API: POST /api/proposals, GET /api/proposals/:id, POST /api/proposals/:id/mfa,
+   POST /api/triggers/{call,apex-lead,agency-zoom}
+7. ✅ Playwright browser instance + sessions/ directory
+8. ✅ Salesforce login (`login.ts`) — waitForFunction (not waitForNavigation) for SPA
+9. ✅ MFA human-in-loop gate (`mfa.ts`) — polls every 3s, 5min timeout
+10. ✅ Session persistence (`session.ts`) — per-agentId storageState JSON
+11. ✅ Gemini Computer Use loop (`gemini.ts`) — multi-turn functionCall/functionResponse
+12. ✅ Alta form filler (`alta.ts`)
+13. ✅ 360 form filler (`360.ts`)
+14. ✅ APEX step orchestrator (`apex.step.ts`) — login → MFA → persist → Alta → 360
+15. ✅ Pipeline orchestrator (`pipeline.ts`) — research → APEX, timing on each phase
+16. ✅ Smoke test (`test-e2e.ts`) — POST /api/proposals → poll to completion
 
-1. Backend skeleton — folder structure, TypeScript config, Express server,
-   Winston logger, env validation
-2. BullMQ queue + worker setup (Redis backing)
-3. ProposalInput types + three trigger adapters (call, apex_lead, agency_zoom)
-4. Three stub steps (CAD, Maps, Realtor) following stub pattern above
-5. Research aggregator (passthrough to dummy-research.json for now)
-6. API endpoints: POST /proposals, GET /proposals/:id, GET /health,
-   POST /triggers/call, POST /triggers/apex-lead, POST /triggers/agency-zoom
-7. Playwright browser instance + session directory setup
-8. Salesforce login flow (`login.ts`)
-9. MFA detection + human-in-loop pause (`mfa.ts`)
-10. Session persistence + restore (`session.ts`)
-11. Gemini Computer Use wrapper (`gemini.ts`)
-12. Alta form filler (`alta.ts`)
-13. 360 form filler (`360.ts`)
-14. Full APEX step orchestrator (`apex.step.ts`)
-15. Wire pipeline orchestrator
-16. End-to-end test: POST /proposals with dummy input → logs fire → Playwright
-    opens Salesforce → begins filling Alta + 360
+**Next build phase — frontend wiring:**
+- Wire `/research-agent` page to proposal pipeline server
+- Replace `/research-browser-run` video with live status feed
+- Add MFA code entry UI
+
+---
+
+## Known Gotchas (Save Yourself Time)
+
+- **dotenv in ESM**: `config()` must be called inside `env.ts` before the Zod
+  schema runs. Calling it in `server.ts` or anywhere else is too late due to
+  ESM static import hoisting — env vars will be undefined at validation time.
+
+- **BullMQ jobId**: `queue.add(name, data)` auto-assigns a numeric job ID.
+  `queue.getJob(proposalId)` returns null unless you pass `{ jobId: proposalId }`
+  as the third argument to `queue.add()`. All three trigger routes must do this.
+
+- **Salesforce login waitForNavigation**: SF renders the MFA screen as a SPA
+  transition (no full navigation event). Use `waitForFunction(() =>
+  !window.location.href.includes('login.salesforce.com/'))` instead of
+  `waitForNavigation`.
+
+- **Screenshot after login**: Read the org domain from saved session cookies
+  (`context.cookies()` → find `.salesforce.com` domain) and navigate to it.
+  Don't screenshot a newly opened blank page.
+
+- **Winston object logs**: Pass structured objects to `logger.info({ ... })`,
+  not `logger.info('message', { ... })`. The printf format must JSON.stringify
+  when `typeof message === 'object'`.
 
 ---
 

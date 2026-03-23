@@ -1,8 +1,15 @@
 /**
- * Step 8 — Salesforce login flow.
+ * Step 8 — Farmers Insurance / Okta login flow.
  *
- * Navigates to SF_LOGIN_URL, fills username + password, submits.
- * Returns 'success', 'mfa_required', or 'failed'.
+ * Farmers uses Okta SAML SSO (not standard Salesforce login):
+ *   eagent.farmersinsurance.com → eagentsaml.farmersinsurance.com (Okta)
+ *   → farmersagent.my.salesforce.com/secur/frontdoor.jsp (SAML handoff)
+ *
+ * Login quirks discovered during testing:
+ *   - Submit button is "I AGREE" (legal terms + submit combined)
+ *   - MFA page stays at the same URL as login — can't waitForNavigation
+ *   - MFA screen is Okta SMS Authentication widget
+ *   - After MFA, Okta redirects to frontdoor.jsp then Salesforce Lightning
  */
 import type { BrowserContext } from 'playwright';
 import { env } from '../config/env.js';
@@ -20,51 +27,65 @@ export async function loginToSalesforce(
   logger.info({ proposalId, step: 'login', status: 'started' });
 
   try {
-    await page.goto(env.SF_LOGIN_URL, { waitUntil: 'domcontentloaded' });
+    // Use 'load' but catch timeout — some Okta redirect chains don't fire load events cleanly
+    await page.goto(env.SF_LOGIN_URL, { waitUntil: 'load', timeout: 15_000 }).catch(() => {
+      logger.warn({ proposalId, step: 'login', msg: 'goto load timeout — proceeding anyway' });
+    });
 
-    // If already logged in (session restored), skip the form
-    if (!page.url().includes('login')) {
-      logger.info({ proposalId, step: 'login', status: 'session_valid' });
+    // If session is already valid, Okta skips login and sends us straight to Salesforce
+    if (page.url().includes('salesforce.com') && !page.url().includes('eagentsaml')) {
+      logger.info({ proposalId, step: 'login', status: 'session_valid', durationMs: timer() });
       await page.close();
       return 'success';
     }
 
-    await page.fill('#username', env.SF_USERNAME ?? '');
-    await page.fill('#password', env.SF_PASSWORD ?? '');
-    await page.click('#Login');
+    logger.info({ proposalId, step: 'login', msg: 'waiting for username input', url: page.url() });
 
-    // Salesforce may do a full navigation OR a SPA transition to the MFA screen.
-    // Wait for the URL to change away from the login page (up to 30s).
-    await page.waitForFunction(
-      () => !window.location.href.includes('login.salesforce.com/'),
-      { timeout: 30_000 }
-    );
+    // Wait for Okta login form — use specific name attributes to avoid matching cookie banner inputs
+    await page.waitForTimeout(2000); // let page settle after goto
+    const usernameInput = page.locator('input[name="username"]').first();
+    await usernameInput.waitFor({ state: 'visible', timeout: 30_000 });
+    await usernameInput.fill(env.SF_USERNAME ?? '');
+
+    const passwordInput = page.locator('input[name="password"]').first();
+    await passwordInput.fill(env.SF_PASSWORD ?? '');
+
+    // Click "I AGREE" — Farmers' submit button (legal terms + login combined)
+    await page.locator('button:has-text("I AGREE")').click();
+
+    // Wait for the page to respond — MFA stays at same URL, Salesforce redirects away
+    await page.waitForTimeout(4000);
 
     const url = page.url();
     logger.info({ proposalId, step: 'login', status: 'navigated', url });
 
-    const result = detectPostLoginState(url);
-    logger.info({ proposalId, step: 'login', status: result, durationMs: timer() });
+    // Check if we landed on Salesforce directly (no MFA needed)
+    if (url.includes('salesforce.com') && !url.includes('eagentsaml')) {
+      logger.info({ proposalId, step: 'login', status: 'success', durationMs: timer() });
+      await page.close();
+      return 'success';
+    }
 
-    // Keep the page open if MFA is needed — mfa.ts uses context.pages() to find it
-    if (result !== 'mfa_required') await page.close();
-    return result;
-  } catch (err) {
-    logger.error({ proposalId, step: 'login', status: 'failed', durationMs: timer(), err });
+    // Still on Okta — check if MFA widget is visible
+    const mfaVisible = await page.locator('text=SMS Authentication').isVisible({ timeout: 3_000 }).catch(() => false);
+    if (mfaVisible) {
+      // Click "Sent" to trigger the SMS code
+      const sentBtn = page.locator('input[value="Send Code"], a:has-text("Send"), button:has-text("Send")').first();
+      if (await sentBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await sentBtn.click();
+        await page.waitForTimeout(2000);
+      }
+      logger.info({ proposalId, step: 'login', status: 'mfa_required', durationMs: timer() });
+      // Keep page open — mfa.ts uses context.pages() to find it
+      return 'mfa_required';
+    }
+
+    logger.warn({ proposalId, step: 'login', status: 'failed', url, durationMs: timer() });
     await page.close();
     return 'failed';
+  } catch (err) {
+    logger.error({ proposalId, step: 'login', status: 'failed', durationMs: timer(), err });
+    await page.close().catch(() => {});
+    return 'failed';
   }
-}
-
-function detectPostLoginState(url: string): LoginResult {
-  if (url.includes('login.salesforce.com')) return 'failed';
-  if (
-    url.includes('identity/verify') ||
-    url.includes('two-factor') ||
-    url.includes('mfa') ||
-    url.includes('verification')
-  ) {
-    return 'mfa_required';
-  }
-  return 'success';
 }
