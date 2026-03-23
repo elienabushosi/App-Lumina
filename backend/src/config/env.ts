@@ -27,6 +27,9 @@ const envSchema = z.object({
   // Redis (BullMQ)
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
+  // ATTOM Data API (property research)
+  ATTOM_API_KEY: z.string().optional(),
+
   // Optional — already in existing backend, carried forward
   DEEPGRAM_API_KEY: z.string().optional(),
   GOOGLE_MAPS_API_KEY: z.string().optional(),

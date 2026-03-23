@@ -8,6 +8,7 @@ import emailRoutes from "./routes/email.js";
 import ringcentralRoutes from "./routes/ringcentral.js";
 import callsRoutes from "./routes/calls.js";
 import agencyzoomRoutes from "./routes/agencyzoom.js";
+import propertyRoutes from "./routes/property.js";
 import { startCallLogPoller } from "./lib/ringcentral-call-log-poller.js";
 
 const app = express();
@@ -37,6 +38,7 @@ app.use("/api/email", emailRoutes);
 app.use("/api/ringcentral", ringcentralRoutes);
 app.use("/api/calls", callsRoutes);
 app.use("/api/agencyzoom", agencyzoomRoutes);
+app.use("/api/property", propertyRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

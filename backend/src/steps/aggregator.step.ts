@@ -23,7 +23,7 @@ export async function runResearchAggregator(
 
   // Run all three stubs in parallel. Each is try/caught internally — none can throw.
   const [cad, googleMaps, realtor] = await Promise.all([
-    runCADStep(proposalId, fullAddress),
+    runCADStep(proposalId, input.property.address, input.property.city, input.property.state),
     runMapsStep(proposalId, fullAddress),
     runRealtorStep(proposalId, fullAddress),
   ]);

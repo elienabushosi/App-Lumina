@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { config } from "@/lib/config";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,22 +28,21 @@ const STEPS = {
 	READY_360: 9,
 } as const;
 
-// Demo data for 9808 Coolidge Dr., McKinney, TX 75072 (Collin CAD Property ID 2516503)
-const DUMMY_ATTRIBUTES = [
-	{ label: "Type", value: "Single-family home" },
-	{ label: "Year built", value: "2003" },
-	{ label: "Living area", value: "1,914 sq ft" },
-	{ label: "Total building", value: "2,379 sq ft" },
-	{ label: "Attached Garage", value: "465 sq ft" },
-	{ label: "Covered Porch/Patio", value: "44 sq ft" },
-	{ label: "County", value: "Collin County" },
-	{ label: "Last sale", value: "$133,700 on 8/13/2003" },
-	{ label: "Estimated value", value: "$355,921" },
-	{ label: "2024 property tax", value: "Increased ~94% (up $3,510)" },
-	{ label: "APN", value: "R-8113-00D-0190-1" },
-];
+
 const COLLIN_CAD_SOURCE_URL =
 	"https://esearch.collincad.org/Property/View/2516503?year=2026&ownerId=558191";
+
+type CadData = {
+	propertyType: string | null;
+	yearBuilt: number | null;
+	livingAreaSqft: number | null;
+	totalBuildingSqft: number | null;
+	attachedGarageSqft: number | null;
+	county: string | null;
+	apn: string | null;
+	lastSaleAmount: number | null;
+	lastSaleDate: string | null;
+};
 
 function ResearchAgentInner() {
 	const router = useRouter();
@@ -50,16 +50,23 @@ function ResearchAgentInner() {
 	const [step, setStep] = useState(STEPS.INPUT);
 
 	const [address, setAddress] = useState("");
+	// Individual address parts from query params (used for API call)
+	const [addrParts, setAddrParts] = useState<{ address: string; city: string; state: string; zip: string } | null>(null);
+	// Real CAD data from ATTOM API
+	const [cadData, setCadData] = useState<CadData | null>(null);
+	const [cadError, setCadError] = useState<string | null>(null);
 
 	// Pre-fill address from query params (e.g. navigated from call detail "Start Proposal")
 	useEffect(() => {
-		const parts = [
-			searchParams.get("address"),
-			searchParams.get("city"),
-			searchParams.get("state"),
-			searchParams.get("zip"),
-		].filter(Boolean);
-		if (parts.length > 0) setAddress(parts.join(", "));
+		const a = searchParams.get("address");
+		const c = searchParams.get("city");
+		const s = searchParams.get("state");
+		const z = searchParams.get("zip");
+		const parts = [a, c, s, z].filter(Boolean);
+		if (parts.length > 0) {
+			setAddress(parts.join(", "));
+			if (a && c && s) setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
+		}
 	}, [searchParams]);
 	const [groundStage, setGroundStage] = useState(0); // 0: loading, 1: inferring, 2: results
 	const [birdsStage, setBirdsStage] = useState(0); // 0: loading, 1: inferring, 2: results
@@ -118,6 +125,20 @@ function ResearchAgentInner() {
 	const analysisComplete = birdsStage === 2;
 	const zillowRedfinComplete = redfinStage === 2;
 
+	// Build attributes from real ATTOM data only
+	const displayAttributes = cadData
+		? [
+			{ label: "Type", value: cadData.propertyType ?? "—" },
+			{ label: "Year built", value: cadData.yearBuilt?.toString() ?? "—" },
+			{ label: "Living area", value: cadData.livingAreaSqft ? `${cadData.livingAreaSqft.toLocaleString()} sq ft` : "—" },
+			{ label: "Total building", value: cadData.totalBuildingSqft ? `${cadData.totalBuildingSqft.toLocaleString()} sq ft` : "—" },
+			{ label: "Attached Garage", value: cadData.attachedGarageSqft ? `${cadData.attachedGarageSqft.toLocaleString()} sq ft` : "—" },
+			...(cadData.county ? [{ label: "County", value: cadData.county }] : []),
+			...(cadData.apn ? [{ label: "APN", value: cadData.apn }] : []),
+			...(cadData.lastSaleAmount ? [{ label: "Last sale", value: `$${cadData.lastSaleAmount.toLocaleString()}${cadData.lastSaleDate ? ` on ${cadData.lastSaleDate}` : ""}` }] : []),
+		]
+		: [];
+
 	// When entering Zillow & Redfin step, show loader first, then imagery
 	useEffect(() => {
 		if (step !== STEPS.DATA_GATHERED) return;
@@ -150,9 +171,35 @@ function ResearchAgentInner() {
 		};
 	}, [step, zillowRedfinViewPhase]);
 
-	const handleResearch = () => {
+	const handleResearch = async () => {
 		setAddress(effectiveAddress);
+		setCadData(null);
+		setCadError(null);
 		setStep(STEPS.CAD_LOADER);
+
+		if (!addrParts) {
+			setCadError("No address components available — navigate here from a call detail page or enter a full address.");
+			return;
+		}
+
+		try {
+			const params = new URLSearchParams({
+				address: addrParts.address,
+				city: addrParts.city,
+				state: addrParts.state,
+			});
+			const res = await fetch(`${config.apiUrl}/api/property/cad?${params}`);
+			const json = await res.json();
+			if (!res.ok) {
+				setCadError(json.error ?? `API error ${res.status}`);
+			} else if (json.cad) {
+				setCadData(json.cad as CadData);
+			} else {
+				setCadError("Property not found in ATTOM database.");
+			}
+		} catch (err) {
+			setCadError(err instanceof Error ? err.message : "Failed to fetch property data.");
+		}
 	};
 
 	return (
@@ -170,10 +217,15 @@ function ResearchAgentInner() {
 						</div>
 						{/* Data stored pills – below address, left-aligned */}
 						<div className="flex flex-wrap items-center gap-2">
-							{step >= STEPS.DATA_PULLED && (
+							{step >= STEPS.DATA_PULLED && cadData && (
 								<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
 									<CircleCheck className="w-3.5 h-3.5" />
 									CAD data stored
+								</span>
+							)}
+							{step >= STEPS.DATA_PULLED && cadError && (
+								<span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600">
+									CAD fetch failed
 								</span>
 							)}
 							{step >= STEPS.GOOGLE_MAP_PROMPT && (step > STEPS.GOOGLE_MAP_PROMPT || analysisComplete) && (
@@ -268,58 +320,56 @@ function ResearchAgentInner() {
 									className="h-6 w-auto shrink-0 object-contain"
 								/>
 								<p className="text-sm font-medium text-[#37322F]">
-									Collin County CAD Property Report
+									Property CAD Report
 								</p>
 							</div>
 							<p className="text-xs text-[#605A57] min-w-0 break-words">
 								Source:{" "}
-								<a
-									href={COLLIN_CAD_SOURCE_URL}
-									target="_blank"
-									rel="noreferrer"
-									className="text-[#6C70BA] underline hover:no-underline break-words"
-								>
-									Collin CAD Property Search (Property ID 2516503)
-								</a>
+								{cadData ? (
+									<span className="text-[#6C70BA] font-medium">ATTOM Data API</span>
+								) : (
+									<a
+										href={COLLIN_CAD_SOURCE_URL}
+										target="_blank"
+										rel="noreferrer"
+										className="text-[#6C70BA] underline hover:no-underline break-words"
+									>
+										Collin CAD Property Search (Property ID 2516503)
+									</a>
+								)}
 							</p>
 						</div>
-						<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.12)]">
-							<table className="w-full text-sm">
-								<tbody>
-									{DUMMY_ATTRIBUTES.map(({ label, value }) => (
-										<tr
-											key={label}
-											className="border-b border-[rgba(55,50,47,0.08)] last:border-b-0"
-										>
-											<td className="py-2 pl-3 pr-4 text-[#605A57] font-medium">
-												{label}
-											</td>
-											<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-												{value}
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</div>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<div>
-								<p className="text-xs font-medium text-[#605A57] mb-1">Property details (Collin CAD)</p>
-								<img
-									src="/propertydetails9808.png"
-									alt="Collin CAD property details for 9808 Coolidge Dr"
-									className="w-full max-w-sm rounded-md border border-[rgba(55,50,47,0.12)] object-contain"
-								/>
+						{cadError && (
+							<div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+								<span className="font-medium">CAD fetch failed:</span> {cadError}
 							</div>
-							<div>
-								<p className="text-xs font-medium text-[#605A57] mb-1">Property improvement &amp; value history (Collin CAD)</p>
-								<img
-									src="/propertyimprovement9808.png"
-									alt="Collin CAD property improvement and roll value history for 9808 Coolidge Dr"
-									className="w-full max-w-sm rounded-md border border-[rgba(55,50,47,0.12)] object-contain"
-								/>
+						)}
+						{!cadError && displayAttributes.length === 0 && (
+							<div className="rounded-md border border-[rgba(55,50,47,0.12)] bg-[#fafafa] px-4 py-3 text-sm text-[#605A57]">
+								No property data returned.
 							</div>
-						</div>
+						)}
+						{displayAttributes.length > 0 && (
+							<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.12)]">
+								<table className="w-full text-sm">
+									<tbody>
+										{displayAttributes.map(({ label, value }) => (
+											<tr
+												key={label}
+												className="border-b border-[rgba(55,50,47,0.08)] last:border-b-0"
+											>
+												<td className="py-2 pl-3 pr-4 text-[#605A57] font-medium">
+													{label}
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													{value}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						)}
 						<div className="pt-4 border-t border-[rgba(55,50,47,0.08)] space-y-3">
 							<p className="text-sm font-medium text-[#37322F]">
 								Are you ready to continue with Google Maps and images?
@@ -796,24 +846,30 @@ function ResearchAgentInner() {
 												<td className="py-2 pl-3 text-[#605A57]">Address</td>
 												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{effectiveAddress}</td>
 											</tr>
-											{DUMMY_ATTRIBUTES.slice(0, 2).map(({ label, value }) => (
-												<tr key={label} className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">{label}</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{value}</td>
+											{cadData ? (
+												<>
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Type</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.propertyType ?? "—"}</td>
 												</tr>
-											))}
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Living Area</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">1,914 sq ft</td>
-											</tr>
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Attached Garage</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">465 sq ft</td>
-											</tr>
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Covered Porch/Patio</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">44 sq ft</td>
-											</tr>
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Year built</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.yearBuilt ?? "—"}</td>
+												</tr>
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Living Area</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.livingAreaSqft ? `${cadData.livingAreaSqft.toLocaleString()} sq ft` : "—"}</td>
+												</tr>
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td className="py-2 pl-3 text-[#605A57]">Attached Garage</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.attachedGarageSqft ? `${cadData.attachedGarageSqft.toLocaleString()} sq ft` : "—"}</td>
+												</tr>
+												</>
+											) : (
+												<tr className="border-b border-[rgba(55,50,47,0.08)]">
+													<td colSpan={2} className="py-2 pl-3 text-sm text-[#605A57] italic">CAD data not available</td>
+												</tr>
+											)}
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
 												<td className="py-2 pl-3 text-[#605A57]">Bedrooms</td>
 												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">4</td>

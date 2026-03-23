@@ -212,7 +212,7 @@ interface ProposalInput {
 ProposalInput
     │
     ▼
-1. CAD Research          ← STUB (log + return dummy data)
+1. CAD Research          ← REAL — ATTOM Data API (`api.gateway.attomdata.com`)
     │
     ▼
 2. Google Maps + Vision  ← STUB (log + return dummy data)
@@ -250,23 +250,41 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 2. Replace `/research-browser-run` video with live status feed polling `GET /api/proposals/:id`
 3. Add MFA code entry UI to frontend (currently requires `curl POST /api/proposals/:id/mfa`)
 4. Playwright codegen session to capture real `navigateToAlta` + `navigateTo360` URLs
-5. Implement real CAD, Maps, Realtor.com research steps (deferred)
+5. Implement real Maps, Realtor.com research steps (CAD is done via ATTOM)
 
-### Stub Pattern
+### CAD Research — ATTOM Data API
 
-Every stub step must follow this exact pattern:
+CAD data comes from [ATTOM Data API](https://api.gateway.attomdata.com), NOT county scraping.
+
+```
+GET https://api.gateway.attomdata.com/propertyapi/v1.0.0/property/detail
+  ?address1=9808 Coolidge Dr
+  &address2=McKinney, TX
+Headers: apikey: <ATTOM_API_KEY>, Accept: application/json
+```
+
+Field mappings from response:
+- `summary.propclass` → `propertyType`
+- `summary.yearbuilt` → `yearBuilt`
+- `building.size.livingsize` → `livingAreaSqft`
+- `building.size.grosssize` → `totalBuildingSqft`
+- `building.parking.prkgSize` → `attachedGarageSqft`
+
+### Stub Pattern (Maps + Realtor steps still stubbed)
+
+Remaining stub steps follow this pattern:
 
 ```typescript
-export async function runCADStep(proposalId: string, address: string) {
-  logger.info({ proposalId, step: 'cad', status: 'started', address });
+export async function runMapsStep(proposalId: string, address: string) {
+  logger.info({ proposalId, step: 'maps', status: 'started', address });
   try {
-    // TODO: implement real CAD scraper (Playwright + Gemini vision)
-    await new Promise(r => setTimeout(r, 800)); // simulate delay, remove later
-    const result = dummyResearch.cad;
-    logger.info({ proposalId, step: 'cad', status: 'complete' });
+    // TODO: implement real Maps step
+    await new Promise(r => setTimeout(r, 800));
+    const result = dummyResearch.googleMaps.data;
+    logger.info({ proposalId, step: 'maps', status: 'complete' });
     return result;
   } catch (err) {
-    logger.error({ proposalId, step: 'cad', status: 'failed', err });
+    logger.error({ proposalId, step: 'maps', status: 'failed', err });
     return null; // never throw
   }
 }
@@ -428,7 +446,7 @@ intentional — agents need to trust the system before relying on it.
 
 ```
 Address input
-    ↓ (triggers CAD stub)
+    ↓ (triggers CAD — ATTOM API)
 DATA_PULLED
     ↓ "Ready to continue with Google Maps?"
 GOOGLE_MAP_PROMPT
@@ -546,6 +564,9 @@ SF_SESSION_DIR=./sessions
 
 # Gemini (Computer Use)
 GEMINI_API_KEY=
+
+# ATTOM Data API (property / CAD research)
+ATTOM_API_KEY=
 
 # Google Maps (stub for now — key ready, no calls yet)
 GOOGLE_MAPS_API_KEY=
