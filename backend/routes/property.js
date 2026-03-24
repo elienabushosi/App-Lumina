@@ -106,7 +106,7 @@ router.get("/maps", async (req, res) => {
 
 	try {
 		const encoded = encodeURIComponent(address);
-		const satelliteUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=19&size=640x640&maptype=satellite&key=${mapsKey}`;
+		const satelliteUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=20&size=640x640&maptype=satellite&markers=color:red%7C${encoded}&key=${mapsKey}`;
 		const streetviewUrl = `https://maps.googleapis.com/maps/api/streetview?location=${encoded}&size=640x480&fov=90&key=${mapsKey}`;
 
 		// Fetch both images in parallel
@@ -138,17 +138,20 @@ router.get("/maps", async (req, res) => {
 		const ai = new GoogleGenAI({ apiKey: geminiKey });
 
 		const prompt = `You are analyzing satellite and street view images of a residential property.
+The satellite image is zoomed in at maximum resolution and has a red pin marker indicating the exact property to analyze. Focus your analysis on the property at the red pin — ignore neighboring houses.
 Return ONLY a JSON object with exactly these fields — no markdown, no explanation:
 
 {
   "roofStyle": "<hip | gable | flat | mansard | shed | gambrel | unknown>",
   "poolVisible": <true | false>,
-  "solarPanelsVisible": <true | false>
+  "solarPanelsVisible": <true | false>,
+  "trampolineVisible": <true | false>
 }
 
-- roofStyle: shape of the roof visible from satellite or street view
-- poolVisible: true if a swimming pool is visible in the satellite image
-- solarPanelsVisible: true if solar panels are visible on the roof
+- roofStyle: shape of the roof visible from satellite or street view on the pinned property
+- poolVisible: true if a swimming pool is visible on or adjacent to the pinned property
+- solarPanelsVisible: true if solar panels are visible on the roof of the pinned property
+- trampolineVisible: true if a trampoline is visible anywhere on the pinned property's lot
 
 Use "unknown" for roofStyle if not confident. Use false for booleans if not visible.`;
 

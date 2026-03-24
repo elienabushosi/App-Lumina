@@ -12,7 +12,6 @@ import {
 	Trees,
 	Sofa,
 	CircleCheck,
-	ChevronLeft,
 	ListRestart,
 } from "lucide-react";
 
@@ -123,6 +122,7 @@ function ResearchAgentInner() {
 		roofStyle: string;
 		poolVisible: boolean;
 		solarPanelsVisible: boolean;
+		trampolineVisible: boolean;
 		satelliteImage: string | null;
 		streetviewImage: string | null;
 	} | null>(null);
@@ -210,6 +210,7 @@ function ResearchAgentInner() {
 					roofStyle: json.maps?.roofStyle ?? "unknown",
 					poolVisible: Boolean(json.maps?.poolVisible),
 					solarPanelsVisible: Boolean(json.maps?.solarPanelsVisible),
+					trampolineVisible: Boolean(json.maps?.trampolineVisible),
 					satelliteImage: json.images?.satellite ?? null,
 					streetviewImage: json.images?.streetview ?? null,
 				});
@@ -241,16 +242,33 @@ function ResearchAgentInner() {
 		setMapsError(null);
 		setStep(STEPS.CAD_LOADER);
 
-		if (!addrParts) {
-			setCadError("No address components available — navigate here from a call detail page or enter a full address.");
+		// Parse address components from typed input if not provided via URL params.
+		// Expects format: "123 Main St, City, ST 12345" or "123 Main St, City, ST"
+		let parts = addrParts;
+		if (!parts && effectiveAddress) {
+			const segments = effectiveAddress.split(",").map(s => s.trim());
+			if (segments.length >= 3) {
+				const stateZip = segments[segments.length - 1].trim().split(/\s+/);
+				parts = {
+					address: segments[0],
+					city: segments[segments.length - 2],
+					state: stateZip[0] ?? "",
+					zip: stateZip[1] ?? "",
+				};
+				setAddrParts(parts);
+			}
+		}
+
+		if (!parts) {
+			setCadError("Could not parse address — use format: 123 Main St, City, ST 12345");
 			return;
 		}
 
 		try {
 			const params = new URLSearchParams({
-				address: addrParts.address,
-				city: addrParts.city,
-				state: addrParts.state,
+				address: parts.address,
+				city: parts.city,
+				state: parts.state,
 			});
 			const res = await fetch(`${config.apiUrl}/api/property/cad?${params}`);
 			const json = await res.json();
@@ -285,14 +303,6 @@ function ResearchAgentInner() {
 
 				{step !== STEPS.INPUT && (
 					<>
-						<button
-							type="button"
-							onClick={goBack}
-							className="inline-flex items-center gap-1 text-xs text-[#605A57] hover:text-[#37322F] transition-colors"
-						>
-							<ChevronLeft className="w-4 h-4" />
-							Back
-						</button>
 						<div className="flex items-center gap-2 text-sm text-[#605A57]">
 							<MapPinHouse className="w-4 h-4 text-[#6C70BA]" />
 							<span>{effectiveAddress}</span>
@@ -355,15 +365,13 @@ function ResearchAgentInner() {
 				{/* Step 1: Collin County CAD loader */}
 				{step === STEPS.CAD_LOADER && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 flex flex-col items-center gap-4">
-						<div className="rounded-lg bg-[#5c677d] p-4 flex items-center justify-center">
-							<img
-								src="/logos/collin-cad-logo.png"
-								alt="Collin Central Appraisal District"
-								className="h-12 w-auto object-contain"
-							/>
-						</div>
+						<img
+							src="/texascad.png"
+							alt="Texas CAD"
+							className="h-14 w-auto object-contain"
+						/>
 						<p className="text-sm text-[#605A57]">
-							Pulling data from Collin County CAD…
+							Searching {addrParts ? `${addrParts.city}, ${addrParts.state}` : "local"} property data…
 						</p>
 						<div className="flex gap-1">
 							<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
@@ -397,8 +405,8 @@ function ResearchAgentInner() {
 						<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 							<div className="flex items-center gap-2 min-w-0">
 								<img
-									src="/collin-cad%20simple%20logo.png"
-									alt="Collin County CAD"
+									src="/texascad.png"
+									alt="Texas CAD"
 									className="h-6 w-auto shrink-0 object-contain"
 								/>
 								<p className="text-sm font-medium text-[#37322F]">
@@ -471,6 +479,13 @@ function ResearchAgentInner() {
 								(slab vs pier &amp; beam) from visible slab/vents, exterior wall materials, and more.
 							</p>
 							<div className="flex gap-3">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={goBack}
+							>
+								Back
+							</Button>
 								<Button
 									type="button"
 									onClick={handleStartMapsAnalysis}
@@ -499,7 +514,14 @@ function ResearchAgentInner() {
 						<p className="text-sm text-[#605A57]">
 							Confirm the property data before we continue with Google Maps and images.
 						</p>
-						<div className="flex justify-end gap-3">
+						<div className="flex gap-3">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={goBack}
+							>
+								Back
+							</Button>
 							<Button
 								type="button"
 								onClick={handleStartMapsAnalysis}
@@ -610,6 +632,7 @@ function ResearchAgentInner() {
 												<li><strong>Roof style:</strong> {mapsData.roofStyle}</li>
 												<li><strong>Pool:</strong> {mapsData.poolVisible ? "Visible" : "None visible"}</li>
 												<li><strong>Solar panels:</strong> {mapsData.solarPanelsVisible ? "Visible" : "None visible"}</li>
+												<li><strong>Trampoline:</strong> {mapsData.trampolineVisible ? "Visible" : "None visible"}</li>
 											</ul>
 										)}
 									</div>
@@ -625,6 +648,13 @@ function ResearchAgentInner() {
 									We&apos;ll pull structured Zillow records — flooring, bathrooms, valuation, schools, and interior condition.
 								</p>
 								<div className="flex gap-3">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={goBack}
+								>
+									Back
+								</Button>
 									<Button
 										type="button"
 										onClick={handleStartRealtorAnalysis}
@@ -815,7 +845,14 @@ function ResearchAgentInner() {
 						)}
 
 						{(realtorData || realtorError) && !realtorLoading && (
-							<div className="flex items-center justify-end pt-2">
+							<div className="flex items-center gap-3 pt-2">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={goBack}
+							>
+								Back
+							</Button>
 								<Button
 									type="button"
 									onClick={() => setStep(STEPS.READY_360)}
@@ -930,7 +967,7 @@ function ResearchAgentInner() {
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
 												<td className="py-2 pl-3 text-[#605A57]">Trampoline</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">None visible</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{mapsData?.trampolineVisible ? "Visible" : "None visible"}</td>
 											</tr>
 											<tr>
 												<td className="py-2 pl-3 text-[#605A57]">Swimming pool</td>
@@ -1005,8 +1042,15 @@ function ResearchAgentInner() {
 							<p className="text-sm text-[#605A57]">
 								We can use this information to fill out the replacement cost section in 360 automatically.
 							</p>
-							<div className="flex justify-end items-start">
-								<div className="flex flex-col items-end">
+							<div className="flex items-start gap-3">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={goBack}
+								>
+									Back
+								</Button>
+								<div className="flex flex-col items-end ml-auto">
 									<Button
 										type="button"
 										className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white inline-flex items-center gap-2"
