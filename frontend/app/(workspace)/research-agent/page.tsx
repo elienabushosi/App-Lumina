@@ -12,6 +12,8 @@ import {
 	Trees,
 	Sofa,
 	CircleCheck,
+	ChevronLeft,
+	ListRestart,
 } from "lucide-react";
 
 type RealtorApiData = {
@@ -219,6 +221,18 @@ function ResearchAgentInner() {
 		}
 	};
 
+	const goBack = () => {
+		if (step <= STEPS.DATA_PULLED) {
+			setStep(STEPS.INPUT);
+		} else if (step === STEPS.CONFIRM_LOOKS_RIGHT || step === STEPS.GOOGLE_MAP_PROMPT) {
+			setStep(STEPS.DATA_PULLED);
+		} else if (step === STEPS.DATA_GATHERED) {
+			setStep(mapsData ? STEPS.GOOGLE_MAP_PROMPT : STEPS.DATA_PULLED);
+		} else if (step === STEPS.READY_360) {
+			setStep(realtorData ? STEPS.DATA_GATHERED : mapsData ? STEPS.GOOGLE_MAP_PROMPT : STEPS.DATA_PULLED);
+		}
+	};
+
 	const handleResearch = async () => {
 		setAddress(effectiveAddress);
 		setCadData(null);
@@ -271,6 +285,14 @@ function ResearchAgentInner() {
 
 				{step !== STEPS.INPUT && (
 					<>
+						<button
+							type="button"
+							onClick={goBack}
+							className="inline-flex items-center gap-1 text-xs text-[#605A57] hover:text-[#37322F] transition-colors"
+						>
+							<ChevronLeft className="w-4 h-4" />
+							Back
+						</button>
 						<div className="flex items-center gap-2 text-sm text-[#605A57]">
 							<MapPinHouse className="w-4 h-4 text-[#6C70BA]" />
 							<span>{effectiveAddress}</span>
@@ -382,6 +404,16 @@ function ResearchAgentInner() {
 								<p className="text-sm font-medium text-[#37322F]">
 									Property CAD Report
 								</p>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={handleResearch}
+									title="Re-pull CAD data"
+									className="h-7 px-2"
+								>
+									<ListRestart className="w-3.5 h-3.5" />
+								</Button>
 							</div>
 							<p className="text-xs text-[#605A57] min-w-0 break-words">
 								Source:{" "}
@@ -490,6 +522,18 @@ function ResearchAgentInner() {
 									alt="Google Maps"
 									className="h-8 w-auto object-contain"
 								/>
+								{!mapsLoading && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={handleStartMapsAnalysis}
+										title="Re-pull Maps data"
+										className="h-7 px-2"
+									>
+										<ListRestart className="w-3.5 h-3.5" />
+									</Button>
+								)}
 							</div>
 							<div className="flex items-center gap-2 text-xs text-[#605A57]">
 								{mapsLoading && (
@@ -607,6 +651,18 @@ function ResearchAgentInner() {
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 							<div className="flex items-center gap-3 shrink-0">
 								<img src="/logos/Zillow-Logo.png" alt="Zillow" className="h-9 w-auto object-contain" />
+								{!realtorLoading && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={handleStartRealtorAnalysis}
+										title="Re-pull Realtor data"
+										className="h-7 px-2"
+									>
+										<ListRestart className="w-3.5 h-3.5" />
+									</Button>
+								)}
 							</div>
 							<p className="text-xs text-[#605A57] sm:text-right">
 								{realtorLoading ? "Fetching Zillow records…" : realtorData ? "Realtor.com / Zillow Records" : ""}
