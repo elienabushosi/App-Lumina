@@ -16,10 +16,13 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1),
 
   // Salesforce / APEX Agent
-  SF_LOGIN_URL: z.string().url().default('https://login.salesforce.com'),
-  SF_USERNAME: z.string().optional(),
-  SF_PASSWORD: z.string().optional(),
+  SF_LOGIN_URL: z.string().url().default('https://eagentsaml.farmersinsurance.com/login.html'),
   SF_SESSION_DIR: z.string().default('./sessions'),
+  // Per-agent credentials (keyed by agentId with hyphens replaced by underscores, uppercased)
+  SF_USERNAME_JAKE_RIDLEY: z.string().optional(),
+  SF_PASSWORD_JAKE_RIDLEY: z.string().optional(),
+  SF_USERNAME_CG_AGENT_001: z.string().optional(),
+  SF_PASSWORD_CG_AGENT_001: z.string().optional(),
 
   // Gemini (Computer Use)
   GEMINI_API_KEY: z.string().optional(),

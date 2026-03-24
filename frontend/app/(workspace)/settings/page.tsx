@@ -83,6 +83,18 @@ const passwordResetSchema = z
 
 type PasswordResetFormValues = z.infer<typeof passwordResetSchema>;
 
+const AGENTS = [
+	{ id: "jake-ridley", label: "Jake Ridley", org: "Ridley Insurance" },
+	{ id: "cg-agent-001", label: "CG Insurance", org: "Cntya G. Insurance" },
+] as const;
+
+const AGENT_STORAGE_KEY = "lumina_active_agent";
+
+export function getActiveAgentId(): string {
+	if (typeof window === "undefined") return AGENTS[0].id;
+	return localStorage.getItem(AGENT_STORAGE_KEY) ?? AGENTS[0].id;
+}
+
 export default function SettingsPage() {
 	const searchParams = useSearchParams();
 	const [currentUser, setCurrentUser] = useState<{
@@ -94,6 +106,7 @@ export default function SettingsPage() {
 		};
 	} | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
+	const [activeAgentId, setActiveAgentId] = useState<string>(AGENTS[0].id);
 	const [isRequestingCode, setIsRequestingCode] = useState(false);
 	const [isResetting, setIsResetting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -180,6 +193,10 @@ export default function SettingsPage() {
 		};
 		fetchRingCentralStatus();
 		fetchAgencyZoomStatus();
+	}, []);
+
+	useEffect(() => {
+		setActiveAgentId(localStorage.getItem(AGENT_STORAGE_KEY) ?? AGENTS[0].id);
 	}, []);
 
 	useEffect(() => {
@@ -567,6 +584,45 @@ export default function SettingsPage() {
 				</h1>
 
 				<div className="space-y-6">
+					{/* Active Agent */}
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2 text-base">
+								Active Agent
+							</CardTitle>
+							<p className="text-sm text-[#605A57]">
+								Select which agent's Salesforce session is used when running browser automation.
+							</p>
+						</CardHeader>
+						<CardContent className="flex flex-col gap-3">
+							{AGENTS.map((agent) => (
+								<button
+									key={agent.id}
+									onClick={() => {
+										setActiveAgentId(agent.id);
+										localStorage.setItem(AGENT_STORAGE_KEY, agent.id);
+										window.dispatchEvent(new Event("lumina_agent_changed"));
+									}}
+									className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
+										activeAgentId === agent.id
+											? "border-[#6C70BA] bg-[#6C70BA]/5"
+											: "border-[#E0DEDB] bg-white hover:bg-[#F7F5F3]"
+									}`}
+								>
+									<div>
+										<p className={`text-sm font-medium ${activeAgentId === agent.id ? "text-[#6C70BA]" : "text-[#37322F]"}`}>
+											{agent.label}
+										</p>
+										<p className="text-xs text-[#605A57]">{agent.org}</p>
+									</div>
+									{activeAgentId === agent.id && (
+										<Check className="h-4 w-4 text-[#6C70BA] shrink-0" />
+									)}
+								</button>
+							))}
+						</CardContent>
+					</Card>
+
 					{/* Change Password Section */}
 					<Card>
 						<CardHeader>

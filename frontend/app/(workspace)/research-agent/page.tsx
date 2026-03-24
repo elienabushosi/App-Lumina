@@ -961,7 +961,7 @@ function ResearchAgentInner() {
 													headers: { "Content-Type": "application/json" },
 													body: JSON.stringify({
 														triggeredBy: agencyZoomLeadId ? "agency_zoom" : "apex_lead",
-														agentId: "alex-ridley",
+														agentId: localStorage.getItem("lumina_active_agent") ?? "jake-ridley",
 														leadId: agencyZoomLeadId ?? undefined,
 														property: addrParts ?? { address: effectiveAddress, city: "", state: "", zip: "" },
 														contact: leadName

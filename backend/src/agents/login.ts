@@ -11,9 +11,17 @@ import { startTimer } from '../lib/timer.js';
 
 export type LoginResult = 'success' | 'mfa_required' | 'failed';
 
+function getAgentCredentials(agentId: string): { username: string; password: string } {
+  const key = agentId.toUpperCase().replace(/-/g, '_');
+  const username = process.env[`SF_USERNAME_${key}`] ?? '';
+  const password = process.env[`SF_PASSWORD_${key}`] ?? '';
+  return { username, password };
+}
+
 export async function loginToSalesforce(
   context: BrowserContext,
-  proposalId: string
+  proposalId: string,
+  agentId: string = 'jake-ridley'
 ): Promise<LoginResult> {
   const timer = startTimer();
   const page = await context.newPage();
@@ -32,16 +40,17 @@ export async function loginToSalesforce(
       return 'success';
     }
 
-    logger.info({ proposalId, step: 'login', msg: 'on login form', url: page.url() });
+    const { username, password } = getAgentCredentials(agentId);
+    logger.info({ proposalId, step: 'login', msg: 'on login form', url: page.url(), agentId, username });
 
     // Fill username — same selector as test-login.ts
     const usernameInput = page.locator('input[name="username"], input[type="text"], #username').first();
     await usernameInput.waitFor({ timeout: 10_000 });
-    await usernameInput.fill(env.SF_USERNAME ?? '');
+    await usernameInput.fill(username);
 
     // Fill password
     const passwordInput = page.locator('input[name="password"], input[type="password"], #password').first();
-    await passwordInput.fill(env.SF_PASSWORD ?? '');
+    await passwordInput.fill(password);
 
     // Click "I AGREE" — same selector as test-login.ts
     const submitBtn = page.locator('button:has-text("I AGREE"), input[value="I AGREE"], button:has-text("I Agree")').first();

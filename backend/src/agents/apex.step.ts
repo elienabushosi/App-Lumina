@@ -34,7 +34,7 @@ export async function runApexStep(
 
   try {
     // ── Login ──────────────────────────────────────────────────────────────
-    const loginResult = await loginToSalesforce(context, proposalId);
+    const loginResult = await loginToSalesforce(context, proposalId, agentId);
 
     if (loginResult === 'failed') {
       throw new Error('Salesforce login failed');
