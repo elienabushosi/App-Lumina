@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { config } from "@/lib/config";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,14 @@ type RealtorApiData = {
 	taxAssessedValue: number | null;
 	taxAnnualAmount: number | null;
 	propertyTaxRate: number | null;
-	schools: Array<{ name: string; rating: number | null; level: string; distance: number; grades: string }>;
+	listingHistory: Array<{
+		date: string;
+		price: number | null;
+		event: string;
+		pricePerSquareFoot: number | null;
+		source: string | null;
+	}>;
+	photoUrls: string[];
 	hasInteriorPhotos: boolean;
 	homeStatus: string | null;
 	interiorAnalysis: {
@@ -61,10 +68,6 @@ const STEPS = {
 	READY_360: 9,
 } as const;
 
-
-const COLLIN_CAD_SOURCE_URL =
-	"https://esearch.collincad.org/Property/View/2516503?year=2026&ownerId=558191";
-
 type CadData = {
 	propertyType: string | null;
 	yearBuilt: number | null;
@@ -89,10 +92,17 @@ function ResearchAgentInner() {
 
 	const [address, setAddress] = useState("");
 	// Individual address parts from query params (used for API call)
-	const [addrParts, setAddrParts] = useState<{ address: string; city: string; state: string; zip: string } | null>(null);
+	const [addrParts, setAddrParts] = useState<{
+		address: string;
+		city: string;
+		state: string;
+		zip: string;
+	} | null>(null);
 	// Lead context from Agency Zoom (passed via URL params)
 	const [leadName, setLeadName] = useState<string | null>(null);
-	const [agencyZoomLeadId, setAgencyZoomLeadId] = useState<string | null>(null);
+	const [agencyZoomLeadId, setAgencyZoomLeadId] = useState<string | null>(
+		null,
+	);
 	// Real CAD data from ATTOM API
 	const [cadData, setCadData] = useState<CadData | null>(null);
 	const [cadError, setCadError] = useState<string | null>(null);
@@ -108,7 +118,8 @@ function ResearchAgentInner() {
 		const parts = [a, c, s, z].filter(Boolean);
 		if (parts.length > 0) {
 			setAddress(parts.join(", "));
-			if (a && c && s) setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
+			if (a && c && s)
+				setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
 		}
 		if (ln) setLeadName(ln);
 		if (azId) setAgencyZoomLeadId(azId);
@@ -130,6 +141,47 @@ function ResearchAgentInner() {
 	const [mapsError, setMapsError] = useState<string | null>(null);
 	const [geocodeValidating, setGeocodeValidating] = useState(false);
 	const [geocodeError, setGeocodeError] = useState<string | null>(null);
+	const [suggestions, setSuggestions] = useState<string[]>([]);
+	const [showDropdown, setShowDropdown] = useState(false);
+	const autocompleteRef = useRef<HTMLDivElement>(null);
+
+	// Debounced autocomplete — fires 300ms after user stops typing
+	useEffect(() => {
+		if (step !== STEPS.INPUT || address.length < 3) {
+			setSuggestions([]);
+			setShowDropdown(false);
+			return;
+		}
+		const t = setTimeout(async () => {
+			try {
+				const params = new URLSearchParams({ input: address });
+				const res = await fetch(
+					`${config.apiUrl}/api/property/autocomplete?${params}`,
+				);
+				const json = await res.json();
+				const s = json.suggestions ?? [];
+				setSuggestions(s);
+				setShowDropdown(s.length > 0);
+			} catch {
+				// ignore — autocomplete is best-effort
+			}
+		}, 300);
+		return () => clearTimeout(t);
+	}, [address, step]);
+
+	// Close dropdown when clicking outside
+	useEffect(() => {
+		function handleClick(e: MouseEvent) {
+			if (
+				autocompleteRef.current &&
+				!autocompleteRef.current.contains(e.target as Node)
+			) {
+				setShowDropdown(false);
+			}
+		}
+		document.addEventListener("mousedown", handleClick);
+		return () => document.removeEventListener("mousedown", handleClick);
+	}, []);
 
 	// Step 1: After Research click, show CAD loader then auto-advance to attributes
 	useEffect(() => {
@@ -152,20 +204,50 @@ function ResearchAgentInner() {
 	// Build attributes from real ATTOM data only
 	const displayAttributes = cadData
 		? [
-			{ label: "Type", value: cadData.propertyType ?? "—" },
-			{ label: "Year built", value: cadData.yearBuilt?.toString() ?? "—" },
-			{ label: "Stories", value: cadData.stories?.toString() ?? "—" },
-			{ label: "Living area", value: cadData.livingAreaSqft ? `${cadData.livingAreaSqft.toLocaleString()} sq ft` : "—" },
-			{ label: "Total building", value: cadData.totalBuildingSqft ? `${cadData.totalBuildingSqft.toLocaleString()} sq ft` : "—" },
-			{ label: "Attached garage", value: cadData.attachedGarageSqft ? `${cadData.attachedGarageSqft.toLocaleString()} sq ft` : "—" },
-			{ label: "Garage type", value: cadData.garageType ?? "—" },
-			{ label: "Foundation", value: cadData.foundationType ?? "—" },
-			{ label: "Exterior wall", value: cadData.exteriorWallType ?? "—" },
-			{ label: "Roof cover", value: cadData.roofCover ?? "—" },
-			...(cadData.county ? [{ label: "County", value: cadData.county }] : []),
-			...(cadData.apn ? [{ label: "APN", value: cadData.apn }] : []),
-			...(cadData.lastSaleAmount ? [{ label: "Last sale", value: `$${cadData.lastSaleAmount.toLocaleString()}${cadData.lastSaleDate ? ` on ${cadData.lastSaleDate}` : ""}` }] : []),
-		]
+				{ label: "Type", value: cadData.propertyType ?? "—" },
+				{
+					label: "Year built",
+					value: cadData.yearBuilt?.toString() ?? "—",
+				},
+				{ label: "Stories", value: cadData.stories?.toString() ?? "—" },
+				{
+					label: "Living area",
+					value: cadData.livingAreaSqft
+						? `${cadData.livingAreaSqft.toLocaleString()} sq ft`
+						: "—",
+				},
+				{
+					label: "Total building",
+					value: cadData.totalBuildingSqft
+						? `${cadData.totalBuildingSqft.toLocaleString()} sq ft`
+						: "—",
+				},
+				{
+					label: "Attached garage",
+					value: cadData.attachedGarageSqft
+						? `${cadData.attachedGarageSqft.toLocaleString()} sq ft`
+						: "—",
+				},
+				{ label: "Garage type", value: cadData.garageType ?? "—" },
+				{ label: "Foundation", value: cadData.foundationType ?? "—" },
+				{
+					label: "Exterior wall",
+					value: cadData.exteriorWallType ?? "—",
+				},
+				{ label: "Roof cover", value: cadData.roofCover ?? "—" },
+				...(cadData.county
+					? [{ label: "County", value: cadData.county }]
+					: []),
+				...(cadData.apn ? [{ label: "APN", value: cadData.apn }] : []),
+				...(cadData.lastSaleAmount
+					? [
+							{
+								label: "Last sale",
+								value: `$${cadData.lastSaleAmount.toLocaleString()}${cadData.lastSaleDate ? ` on ${cadData.lastSaleDate}` : ""}`,
+							},
+						]
+					: []),
+			]
 		: [];
 
 	const handleStartRealtorAnalysis = async () => {
@@ -179,7 +261,9 @@ function ResearchAgentInner() {
 				? `${addrParts.address}, ${addrParts.city}, ${addrParts.state} ${addrParts.zip}`
 				: effectiveAddress;
 			const params = new URLSearchParams({ address: fullAddress });
-			const res = await fetch(`${config.apiUrl}/api/property/realtor?${params}`);
+			const res = await fetch(
+				`${config.apiUrl}/api/property/realtor?${params}`,
+			);
 			const json = await res.json();
 			if (!res.ok) {
 				setRealtorError(json.error ?? `API error ${res.status}`);
@@ -187,7 +271,11 @@ function ResearchAgentInner() {
 				setRealtorData(json as RealtorApiData);
 			}
 		} catch (err) {
-			setRealtorError(err instanceof Error ? err.message : "Failed to fetch Realtor data.");
+			setRealtorError(
+				err instanceof Error
+					? err.message
+					: "Failed to fetch Realtor data.",
+			);
 		} finally {
 			setRealtorLoading(false);
 		}
@@ -204,7 +292,9 @@ function ResearchAgentInner() {
 				? `${addrParts.address}, ${addrParts.city}, ${addrParts.state} ${addrParts.zip}`
 				: effectiveAddress;
 			const params = new URLSearchParams({ address: fullAddress });
-			const res = await fetch(`${config.apiUrl}/api/property/maps?${params}`);
+			const res = await fetch(
+				`${config.apiUrl}/api/property/maps?${params}`,
+			);
 			const json = await res.json();
 			if (!res.ok) {
 				setMapsError(json.error ?? `API error ${res.status}`);
@@ -219,7 +309,11 @@ function ResearchAgentInner() {
 				});
 			}
 		} catch (err) {
-			setMapsError(err instanceof Error ? err.message : "Failed to fetch map analysis.");
+			setMapsError(
+				err instanceof Error
+					? err.message
+					: "Failed to fetch map analysis.",
+			);
 		} finally {
 			setMapsLoading(false);
 		}
@@ -228,12 +322,21 @@ function ResearchAgentInner() {
 	const goBack = () => {
 		if (step <= STEPS.DATA_PULLED) {
 			setStep(STEPS.INPUT);
-		} else if (step === STEPS.CONFIRM_LOOKS_RIGHT || step === STEPS.GOOGLE_MAP_PROMPT) {
+		} else if (
+			step === STEPS.CONFIRM_LOOKS_RIGHT ||
+			step === STEPS.GOOGLE_MAP_PROMPT
+		) {
 			setStep(STEPS.DATA_PULLED);
 		} else if (step === STEPS.DATA_GATHERED) {
 			setStep(mapsData ? STEPS.GOOGLE_MAP_PROMPT : STEPS.DATA_PULLED);
 		} else if (step === STEPS.READY_360) {
-			setStep(realtorData ? STEPS.DATA_GATHERED : mapsData ? STEPS.GOOGLE_MAP_PROMPT : STEPS.DATA_PULLED);
+			setStep(
+				realtorData
+					? STEPS.DATA_GATHERED
+					: mapsData
+						? STEPS.GOOGLE_MAP_PROMPT
+						: STEPS.DATA_PULLED,
+			);
 		}
 	};
 
@@ -248,19 +351,34 @@ function ResearchAgentInner() {
 		// Only hard-block on ZERO_RESULTS (address truly not found).
 		// API-level errors (REQUEST_DENIED, etc.) fall back to heuristic parsing.
 		setGeocodeValidating(true);
-		let parts: { address: string; city: string; state: string; zip: string } | null = null;
+		let parts: {
+			address: string;
+			city: string;
+			state: string;
+			zip: string;
+		} | null = null;
 		try {
 			const params = new URLSearchParams({ address: effectiveAddress });
-			const res = await fetch(`${config.apiUrl}/api/property/geocode?${params}`);
+			const res = await fetch(
+				`${config.apiUrl}/api/property/geocode?${params}`,
+			);
 			const json = await res.json();
 			if (res.status === 404) {
 				// Google confirmed the address does not exist.
-				setGeocodeError(json.error ?? "Address not found — please check and try again.");
+				setGeocodeError(
+					json.error ??
+						"Address not found — please check and try again.",
+				);
 				setGeocodeValidating(false);
 				return;
 			}
 			if (res.ok) {
-				parts = { address: json.address, city: json.city, state: json.state, zip: json.zip };
+				parts = {
+					address: json.address,
+					city: json.city,
+					state: json.state,
+					zip: json.zip,
+				};
 				setAddress(json.formattedAddress);
 				setAddrParts(parts);
 			}
@@ -272,9 +390,13 @@ function ResearchAgentInner() {
 
 		// Step 1b: Heuristic fallback if geocoding was unavailable.
 		if (!parts) {
-			const segments = effectiveAddress.split(",").map((s: string) => s.trim());
+			const segments = effectiveAddress
+				.split(",")
+				.map((s: string) => s.trim());
 			if (segments.length >= 3) {
-				const stateZip = segments[segments.length - 1].trim().split(/\s+/);
+				const stateZip = segments[segments.length - 1]
+					.trim()
+					.split(/\s+/);
 				parts = {
 					address: segments[0],
 					city: segments[segments.length - 2],
@@ -283,11 +405,12 @@ function ResearchAgentInner() {
 				};
 				setAddrParts(parts);
 			} else {
-				setGeocodeError("Please enter a valid address — e.g. 9813 Pierce Dr, McKinney, TX 75072");
+				setGeocodeError(
+					"Please enter a valid address — e.g. 9813 Pierce Dr, McKinney, TX 75072",
+				);
 				return;
 			}
 		}
-
 
 		// Step 2: Proceed to CAD lookup with geocoded components.
 		setStep(STEPS.CAD_LOADER);
@@ -297,17 +420,29 @@ function ResearchAgentInner() {
 				city: parts.city,
 				state: parts.state,
 			});
-			const res = await fetch(`${config.apiUrl}/api/property/cad?${params}`);
+			const res = await fetch(
+				`${config.apiUrl}/api/property/cad?${params}`,
+			);
 			const json = await res.json();
 			if (!res.ok) {
-				setCadError(json.error ?? `API error ${res.status}`);
+				// ATTOM 400/404 means no property record — send user back to INPUT with a friendly message.
+				setStep(STEPS.INPUT);
+				setGeocodeError(
+					"No property record found for this address. Try a different address or check the spelling.",
+				);
 			} else if (json.cad) {
 				setCadData(json.cad as CadData);
 			} else {
-				setCadError("Property not found in ATTOM database.");
+				setStep(STEPS.INPUT);
+				setGeocodeError(
+					"No property record found for this address. Try a different address or check the spelling.",
+				);
 			}
 		} catch (err) {
-			setCadError(err instanceof Error ? err.message : "Failed to fetch property data.");
+			setStep(STEPS.INPUT);
+			setGeocodeError(
+				"Could not reach the property database — check your connection and try again.",
+			);
 		}
 	};
 
@@ -320,9 +455,14 @@ function ResearchAgentInner() {
 					</h1>
 					{leadName && (
 						<p className="text-sm text-[#605A57] mt-1">
-							Researching for: <span className="font-medium text-[#37322F]">{leadName}</span>
+							Researching for:{" "}
+							<span className="font-medium text-[#37322F]">
+								{leadName}
+							</span>
 							{agencyZoomLeadId && (
-								<span className="ml-2 text-xs text-[#605A57]">AZ #{agencyZoomLeadId}</span>
+								<span className="ml-2 text-xs text-[#605A57]">
+									AZ #{agencyZoomLeadId}
+								</span>
 							)}
 						</p>
 					)}
@@ -347,12 +487,14 @@ function ResearchAgentInner() {
 									CAD fetch failed
 								</span>
 							)}
-							{step >= STEPS.GOOGLE_MAP_PROMPT && (step > STEPS.GOOGLE_MAP_PROMPT || analysisComplete) && (
-								<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
-									<CircleCheck className="w-3.5 h-3.5" />
-									Google Map image analysis data stored
-								</span>
-							)}
+							{step >= STEPS.GOOGLE_MAP_PROMPT &&
+								(step > STEPS.GOOGLE_MAP_PROMPT ||
+									analysisComplete) && (
+									<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
+										<CircleCheck className="w-3.5 h-3.5" />
+										Google Map image analysis data stored
+									</span>
+								)}
 							{zillowRedfinComplete && (
 								<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
 									<CircleCheck className="w-3.5 h-3.5" />
@@ -370,13 +512,46 @@ function ResearchAgentInner() {
 							Enter an address to start.
 						</p>
 						<div className="flex justify-end gap-3">
-							<Input
-								type="text"
-								placeholder="Input address you want to research"
-								className="flex-1 h-10"
-								value={address}
-								onChange={(e) => setAddress(e.target.value)}
-							/>
+							<div className="relative flex-1" ref={autocompleteRef}>
+								<Input
+									type="text"
+									placeholder="Enter a property address"
+									className="h-10 w-full"
+									value={address}
+									onChange={(e) => {
+										setAddress(e.target.value);
+										setGeocodeError(null);
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") {
+											setShowDropdown(false);
+											handleResearch();
+										}
+										if (e.key === "Escape")
+											setShowDropdown(false);
+									}}
+								/>
+								{showDropdown && suggestions.length > 0 && (
+									<div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border border-[rgba(55,50,47,0.12)] bg-white shadow-lg overflow-hidden">
+										{suggestions.map((s, i) => (
+											<button
+												key={i}
+												type="button"
+												className="w-full px-3 py-2.5 text-left text-sm text-[#37322F] hover:bg-[#f3f4f6] border-b border-[rgba(55,50,47,0.06)] last:border-b-0"
+												onMouseDown={(e) => {
+													e.preventDefault();
+													setAddress(s);
+													setSuggestions([]);
+													setShowDropdown(false);
+													setGeocodeError(null);
+												}}
+											>
+												{s}
+											</button>
+										))}
+									</div>
+								)}
+							</div>
 							<Button
 								type="button"
 								onClick={handleResearch}
@@ -405,7 +580,11 @@ function ResearchAgentInner() {
 							className="h-14 w-auto object-contain"
 						/>
 						<p className="text-sm text-[#605A57]">
-							Searching {addrParts ? `${addrParts.city}, ${addrParts.state}` : "local"} property data…
+							Searching{" "}
+							{addrParts
+								? `${addrParts.city}, ${addrParts.state}`
+								: "local"}{" "}
+							property data…
 						</p>
 						<div className="flex gap-1">
 							<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
@@ -422,13 +601,15 @@ function ResearchAgentInner() {
 							Pulling attributes for: {effectiveAddress}
 						</p>
 						<div className="space-y-2">
-							{[70, 55, 65, 50, 45, 60, 75, 40, 55, 60, 65].map((w, i) => (
-								<div
-									key={i}
-									className="h-6 rounded bg-[#f3f4f6] animate-pulse"
-									style={{ width: `${w}%` }}
-								/>
-							))}
+							{[70, 55, 65, 50, 45, 60, 75, 40, 55, 60, 65].map(
+								(w, i) => (
+									<div
+										key={i}
+										className="h-6 rounded bg-[#f3f4f6] animate-pulse"
+										style={{ width: `${w}%` }}
+									/>
+								),
+							)}
 						</div>
 					</div>
 				)}
@@ -457,25 +638,23 @@ function ResearchAgentInner() {
 									<ListRestart className="w-3.5 h-3.5" />
 								</Button>
 							</div>
-							<p className="text-xs text-[#605A57] min-w-0 break-words">
-								Source:{" "}
-								{cadData ? (
-									<span className="text-[#6C70BA] font-medium">ATTOM Data API</span>
-								) : (
-									<a
-										href={COLLIN_CAD_SOURCE_URL}
-										target="_blank"
-										rel="noreferrer"
-										className="text-[#6C70BA] underline hover:no-underline break-words"
-									>
-										Collin CAD Property Search (Property ID 2516503)
-									</a>
-								)}
-							</p>
+							{cadData && (
+								<p className="text-xs text-[#605A57]">
+									Source:{" "}
+									<span className="text-[#6C70BA] font-medium">
+										{cadData.county
+											? `${cadData.county} CAD database`
+											: "CAD database"}
+									</span>
+								</p>
+							)}
 						</div>
 						{cadError && (
 							<div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-								<span className="font-medium">CAD fetch failed:</span> {cadError}
+								<span className="font-medium">
+									CAD fetch failed:
+								</span>{" "}
+								{cadError}
 							</div>
 						)}
 						{!cadError && displayAttributes.length === 0 && (
@@ -487,39 +666,44 @@ function ResearchAgentInner() {
 							<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.12)]">
 								<table className="w-full text-sm">
 									<tbody>
-										{displayAttributes.map(({ label, value }) => (
-											<tr
-												key={label}
-												className="border-b border-[rgba(55,50,47,0.08)] last:border-b-0"
-											>
-												<td className="py-2 pl-3 pr-4 text-[#605A57] font-medium">
-													{label}
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													{value}
-												</td>
-											</tr>
-										))}
+										{displayAttributes.map(
+											({ label, value }) => (
+												<tr
+													key={label}
+													className="border-b border-[rgba(55,50,47,0.08)] last:border-b-0"
+												>
+													<td className="py-2 pl-3 pr-4 text-[#605A57] font-medium">
+														{label}
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{value}
+													</td>
+												</tr>
+											),
+										)}
 									</tbody>
 								</table>
 							</div>
 						)}
 						<div className="pt-4 border-t border-[rgba(55,50,47,0.08)] space-y-3">
 							<p className="text-sm font-medium text-[#37322F]">
-								Are you ready to continue with Google Maps and images?
+								Are you ready to continue with Google Maps and
+								images?
 							</p>
 							<p className="text-xs text-[#605A57]">
-								We&apos;ll use a powerful vision model to infer things like number of stories, foundation type
-								(slab vs pier &amp; beam) from visible slab/vents, exterior wall materials, and more.
+								We&apos;ll use a powerful vision model to infer
+								things like number of stories, foundation type
+								(slab vs pier &amp; beam) from visible
+								slab/vents, exterior wall materials, and more.
 							</p>
 							<div className="flex gap-3">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={goBack}
-							>
-								Back
-							</Button>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={goBack}
+								>
+									Back
+								</Button>
 								<Button
 									type="button"
 									onClick={handleStartMapsAnalysis}
@@ -530,7 +714,9 @@ function ResearchAgentInner() {
 								<Button
 									type="button"
 									variant="outline"
-									onClick={() => setStep(STEPS.ZILLOW_REDFIN_PROMPT)}
+									onClick={() =>
+										setStep(STEPS.ZILLOW_REDFIN_PROMPT)
+									}
 								>
 									Skip
 								</Button>
@@ -546,7 +732,8 @@ function ResearchAgentInner() {
 							Does this look right?
 						</p>
 						<p className="text-sm text-[#605A57]">
-							Confirm the property data before we continue with Google Maps and images.
+							Confirm the property data before we continue with
+							Google Maps and images.
 						</p>
 						<div className="flex gap-3">
 							<Button
@@ -597,18 +784,27 @@ function ResearchAgentInner() {
 										<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:0ms]" />
 										<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:150ms]" />
 										<span className="w-2 h-2 rounded-full bg-[#6C70BA] animate-bounce [animation-delay:300ms]" />
-										<span>Fetching imagery &amp; analyzing…</span>
+										<span>
+											Fetching imagery &amp; analyzing…
+										</span>
 									</>
 								)}
 								{mapsData && <span>Analysis complete</span>}
-								{mapsError && <span className="text-red-600">Analysis failed</span>}
+								{mapsError && (
+									<span className="text-red-600">
+										Analysis failed
+									</span>
+								)}
 							</div>
 						</div>
 
 						{/* Error state */}
 						{mapsError && (
 							<div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-								<span className="font-medium">Maps analysis failed:</span> {mapsError}
+								<span className="font-medium">
+									Maps analysis failed:
+								</span>{" "}
+								{mapsError}
 							</div>
 						)}
 
@@ -629,16 +825,48 @@ function ResearchAgentInner() {
 										)}
 									</div>
 									<div className="px-4 pb-4 space-y-2">
-										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">Street view (exterior)</p>
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">
+											Street view (exterior)
+										</p>
 										{cadData ? (
 											<ul className="text-xs text-[#37322F] space-y-1">
-												{cadData.stories != null && <li><strong>Stories:</strong> {cadData.stories}</li>}
-												{cadData.exteriorWallType && <li><strong>Exterior wall:</strong> {cadData.exteriorWallType}</li>}
-												{cadData.foundationType && <li><strong>Foundation:</strong> {cadData.foundationType}</li>}
-												{cadData.garageType && <li><strong>Garage:</strong> {cadData.garageType}</li>}
+												{cadData.stories != null && (
+													<li>
+														<strong>
+															Stories:
+														</strong>{" "}
+														{cadData.stories}
+													</li>
+												)}
+												{cadData.exteriorWallType && (
+													<li>
+														<strong>
+															Exterior wall:
+														</strong>{" "}
+														{
+															cadData.exteriorWallType
+														}
+													</li>
+												)}
+												{cadData.foundationType && (
+													<li>
+														<strong>
+															Foundation:
+														</strong>{" "}
+														{cadData.foundationType}
+													</li>
+												)}
+												{cadData.garageType && (
+													<li>
+														<strong>Garage:</strong>{" "}
+														{cadData.garageType}
+													</li>
+												)}
 											</ul>
 										) : (
-											<p className="text-xs text-[#9CA3AF]">No CAD data available.</p>
+											<p className="text-xs text-[#9CA3AF]">
+												No CAD data available.
+											</p>
 										)}
 									</div>
 								</div>
@@ -657,16 +885,41 @@ function ResearchAgentInner() {
 										)}
 									</div>
 									<div className="px-4 pb-4 space-y-2">
-										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">Aerial view (roof &amp; site)</p>
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57]">
+											Aerial view (roof &amp; site)
+										</p>
 										{mapsLoading && (
-											<p className="text-xs text-[#9CA3AF]">Gemini is analyzing the roof and site…</p>
+											<p className="text-xs text-[#9CA3AF]">
+												Gemini is analyzing the roof and
+												site…
+											</p>
 										)}
 										{mapsData && (
 											<ul className="text-xs text-[#37322F] space-y-1">
-												<li><strong>Roof style:</strong> {mapsData.roofStyle}</li>
-												<li><strong>Pool:</strong> {mapsData.poolVisible ? "Visible" : "None visible"}</li>
-												<li><strong>Solar panels:</strong> {mapsData.solarPanelsVisible ? "Visible" : "None visible"}</li>
-												<li><strong>Trampoline:</strong> {mapsData.trampolineVisible ? "Visible" : "None visible"}</li>
+												<li>
+													<strong>Roof style:</strong>{" "}
+													{mapsData.roofStyle}
+												</li>
+												<li>
+													<strong>Pool:</strong>{" "}
+													{mapsData.poolVisible
+														? "Visible"
+														: "None visible"}
+												</li>
+												<li>
+													<strong>
+														Solar panels:
+													</strong>{" "}
+													{mapsData.solarPanelsVisible
+														? "Visible"
+														: "None visible"}
+												</li>
+												<li>
+													<strong>Trampoline:</strong>{" "}
+													{mapsData.trampolineVisible
+														? "Visible"
+														: "None visible"}
+												</li>
 											</ul>
 										)}
 									</div>
@@ -677,18 +930,22 @@ function ResearchAgentInner() {
 						{/* Continue — shown once analysis is done */}
 						{mapsData && (
 							<div className="pt-2 space-y-3">
-								<p className="text-sm font-medium text-[#37322F]">Are you ready to continue with Realtor.com?</p>
+								<p className="text-sm font-medium text-[#37322F]">
+									Are you ready to continue with Realtor.com?
+								</p>
 								<p className="text-sm text-[#605A57]">
-									We&apos;ll pull structured Zillow records — flooring, bathrooms, valuation, schools, and interior condition.
+									We&apos;ll pull structured Zillow records —
+									flooring, bathrooms, valuation, listing
+									history, and interior condition.
 								</p>
 								<div className="flex gap-3">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={goBack}
-								>
-									Back
-								</Button>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={goBack}
+									>
+										Back
+									</Button>
 									<Button
 										type="button"
 										onClick={handleStartRealtorAnalysis}
@@ -714,7 +971,11 @@ function ResearchAgentInner() {
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 space-y-6">
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 							<div className="flex items-center gap-3 shrink-0">
-								<img src="/logos/Zillow-Logo.png" alt="Zillow" className="h-9 w-auto object-contain" />
+								<img
+									src="/logos/Zillow-Logo.png"
+									alt="Zillow"
+									className="h-9 w-auto object-contain"
+								/>
 								{!realtorLoading && (
 									<Button
 										type="button"
@@ -729,7 +990,11 @@ function ResearchAgentInner() {
 								)}
 							</div>
 							<p className="text-xs text-[#605A57] sm:text-right">
-								{realtorLoading ? "Fetching Zillow records…" : realtorData ? "Realtor.com / Zillow Records" : ""}
+								{realtorLoading
+									? "Fetching Zillow records…"
+									: realtorData
+										? "Realtor.com / Zillow Records"
+										: ""}
 							</p>
 						</div>
 
@@ -737,7 +1002,11 @@ function ResearchAgentInner() {
 						{realtorLoading && (
 							<div className="space-y-2">
 								{[60, 45, 70, 50, 55, 65].map((w, i) => (
-									<div key={i} className="h-6 rounded bg-[#f3f4f6] animate-pulse" style={{ width: `${w}%` }} />
+									<div
+										key={i}
+										className="h-6 rounded bg-[#f3f4f6] animate-pulse"
+										style={{ width: `${w}%` }}
+									/>
 								))}
 							</div>
 						)}
@@ -745,58 +1014,126 @@ function ResearchAgentInner() {
 						{/* Error */}
 						{realtorError && (
 							<div className="space-y-3">
-								<p className="text-sm text-red-600">{realtorError}</p>
-								<Button variant="outline" size="sm" onClick={handleStartRealtorAnalysis}>Retry</Button>
+								<p className="text-sm text-red-600">
+									{realtorError}
+								</p>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={handleStartRealtorAnalysis}
+								>
+									Retry
+								</Button>
 							</div>
 						)}
 
 						{/* Real data */}
 						{realtorData && (
 							<div className="space-y-5">
+								{/* Photo carousel */}
+								{realtorData.photoUrls && realtorData.photoUrls.length > 0 && (
+									<div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+										{realtorData.photoUrls.map((url, i) => (
+											<img
+												key={i}
+												src={url}
+												alt={`Property photo ${i + 1}`}
+												className="h-40 w-auto shrink-0 rounded-md object-cover"
+											/>
+										))}
+									</div>
+								)}
+
 								{/* Core property facts */}
 								<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
 									<table className="w-full text-sm">
 										<tbody>
-											{realtorData.flooring.length > 0 && (
+											{realtorData.flooring.length >
+												0 && (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Flooring</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.flooring.join(", ")}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Flooring
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{realtorData.flooring.join(
+															", ",
+														)}
+													</td>
 												</tr>
 											)}
 											{!!realtorData.bathroomCount && (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Bathrooms</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.bathroomCount}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Bathrooms
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{
+															realtorData.bathroomCount
+														}
+													</td>
 												</tr>
 											)}
-											{realtorData.foundationDetails.length > 0 && (
+											{realtorData.foundationDetails
+												.length > 0 && (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Foundation</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.foundationDetails.join(", ")}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Foundation
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{realtorData.foundationDetails.join(
+															", ",
+														)}
+													</td>
 												</tr>
 											)}
-											{realtorData.exteriorFeatures.length > 0 && (
+											{realtorData.exteriorFeatures
+												.length > 0 && (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Exterior</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.exteriorFeatures.join(", ")}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Exterior
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{realtorData.exteriorFeatures.join(
+															", ",
+														)}
+													</td>
 												</tr>
 											)}
-											{realtorData.hasFireplace !== null && (
+											{realtorData.hasFireplace !==
+												null && (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Fireplace</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.hasFireplace ? "Yes" : "None"}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Fireplace
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{realtorData.hasFireplace
+															? "Yes"
+															: "None"}
+													</td>
 												</tr>
 											)}
 											{realtorData.cooling.length > 0 && (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Cooling</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.cooling.join(", ")}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Cooling
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{realtorData.cooling.join(
+															", ",
+														)}
+													</td>
 												</tr>
 											)}
 											{realtorData.heating.length > 0 && (
 												<tr>
-													<td className="py-2 pl-3 text-[#605A57]">Heating</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.heating.join(", ")}</td>
+													<td className="py-2 pl-3 text-[#605A57]">
+														Heating
+													</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+														{realtorData.heating.join(
+															", ",
+														)}
+													</td>
 												</tr>
 											)}
 										</tbody>
@@ -804,34 +1141,59 @@ function ResearchAgentInner() {
 								</div>
 
 								{/* Valuation */}
-								{(realtorData.zestimate || realtorData.rentZestimate || realtorData.taxAssessedValue) && (
+								{(realtorData.zestimate ||
+									realtorData.rentZestimate ||
+									realtorData.taxAssessedValue) && (
 									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">Valuation</p>
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">
+											Valuation
+										</p>
 										<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
 											<table className="w-full text-sm">
 												<tbody>
 													{!!realtorData.zestimate && (
 														<tr className="border-b border-[rgba(55,50,47,0.08)]">
-															<td className="py-2 pl-3 text-[#605A57]">Zestimate</td>
-															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.zestimate.toLocaleString()}</td>
+															<td className="py-2 pl-3 text-[#605A57]">
+																Zestimate
+															</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																$
+																{realtorData.zestimate.toLocaleString()}
+															</td>
 														</tr>
 													)}
 													{!!realtorData.rentZestimate && (
 														<tr className="border-b border-[rgba(55,50,47,0.08)]">
-															<td className="py-2 pl-3 text-[#605A57]">Rent Estimate</td>
-															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.rentZestimate.toLocaleString()}/mo</td>
+															<td className="py-2 pl-3 text-[#605A57]">
+																Rent Estimate
+															</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																$
+																{realtorData.rentZestimate.toLocaleString()}
+																/mo
+															</td>
 														</tr>
 													)}
 													{!!realtorData.taxAssessedValue && (
 														<tr className="border-b border-[rgba(55,50,47,0.08)]">
-															<td className="py-2 pl-3 text-[#605A57]">Tax Assessed</td>
-															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.taxAssessedValue.toLocaleString()}</td>
+															<td className="py-2 pl-3 text-[#605A57]">
+																Tax Assessed
+															</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																$
+																{realtorData.taxAssessedValue.toLocaleString()}
+															</td>
 														</tr>
 													)}
 													{!!realtorData.taxAnnualAmount && (
 														<tr>
-															<td className="py-2 pl-3 text-[#605A57]">Annual Tax</td>
-															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">${realtorData.taxAnnualAmount.toLocaleString()}</td>
+															<td className="py-2 pl-3 text-[#605A57]">
+																Annual Tax
+															</td>
+															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																$
+																{realtorData.taxAnnualAmount.toLocaleString()}
+															</td>
 														</tr>
 													)}
 												</tbody>
@@ -840,19 +1202,44 @@ function ResearchAgentInner() {
 									</div>
 								)}
 
-								{/* Schools */}
-								{realtorData.schools.length > 0 && (
+								{/* Listing history */}
+								{realtorData.listingHistory && realtorData.listingHistory.length > 0 && (
 									<div>
-										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">Schools</p>
+										<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">
+											Listing History
+										</p>
 										<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
 											<table className="w-full text-sm">
 												<tbody>
-													{realtorData.schools.map((s, i) => (
-														<tr key={i} className={i < realtorData.schools.length - 1 ? "border-b border-[rgba(55,50,47,0.08)]" : ""}>
-															<td className="py-2 pl-3 text-[#605A57]">{s.name} <span className="text-[10px]">({s.distance.toFixed(1)}mi)</span></td>
-															<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{s.rating ? `★${s.rating}` : ""} {s.grades}</td>
-														</tr>
-													))}
+													{realtorData.listingHistory.map(
+														(entry, i) => (
+															<tr
+																key={i}
+																className={
+																	i < realtorData.listingHistory.length - 1
+																		? "border-b border-[rgba(55,50,47,0.08)]"
+																		: ""
+																}
+															>
+																<td className="py-2 pl-3 text-[#605A57]">
+																	{entry.event}{" "}
+																	<span className="text-[10px] text-[#9CA3AF]">
+																		{entry.date}
+																	</span>
+																</td>
+																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																	{entry.price != null
+																		? `$${entry.price.toLocaleString()}`
+																		: "—"}
+																	{entry.pricePerSquareFoot != null && (
+																		<span className="ml-1 text-[10px] font-normal text-[#9CA3AF]">
+																			(${entry.pricePerSquareFoot}/sqft)
+																		</span>
+																	)}
+																</td>
+															</tr>
+														),
+													)}
 												</tbody>
 											</table>
 										</div>
@@ -861,18 +1248,79 @@ function ResearchAgentInner() {
 
 								{/* Interior analysis */}
 								<div className="rounded-md border border-[rgba(55,50,47,0.08)] p-3 text-sm">
-									{realtorData.hasInteriorPhotos && realtorData.interiorAnalysis ? (
+									{realtorData.hasInteriorPhotos &&
+									realtorData.interiorAnalysis ? (
 										<>
-											<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">Interior Photos Analysis</p>
+											<p className="text-xs font-semibold uppercase tracking-wide text-[#605A57] mb-2">
+												Interior Photos Analysis
+											</p>
 											<ul className="space-y-1 text-[#37322F]">
-												{realtorData.interiorAnalysis.flooringType && <li><strong>Flooring:</strong> {realtorData.interiorAnalysis.flooringType} ({realtorData.interiorAnalysis.flooringCondition})</li>}
-												{realtorData.interiorAnalysis.kitchenFinishes && <li><strong>Kitchen:</strong> {realtorData.interiorAnalysis.kitchenFinishes}</li>}
-												{realtorData.interiorAnalysis.interiorCondition && <li><strong>Condition:</strong> {realtorData.interiorAnalysis.interiorCondition}</li>}
-												{realtorData.interiorAnalysis.notableFeatures.length > 0 && <li><strong>Notable:</strong> {realtorData.interiorAnalysis.notableFeatures.join(", ")}</li>}
+												{realtorData.interiorAnalysis
+													.flooringType && (
+													<li>
+														<strong>
+															Flooring:
+														</strong>{" "}
+														{
+															realtorData
+																.interiorAnalysis
+																.flooringType
+														}{" "}
+														(
+														{
+															realtorData
+																.interiorAnalysis
+																.flooringCondition
+														}
+														)
+													</li>
+												)}
+												{realtorData.interiorAnalysis
+													.kitchenFinishes && (
+													<li>
+														<strong>
+															Kitchen:
+														</strong>{" "}
+														{
+															realtorData
+																.interiorAnalysis
+																.kitchenFinishes
+														}
+													</li>
+												)}
+												{realtorData.interiorAnalysis
+													.interiorCondition && (
+													<li>
+														<strong>
+															Condition:
+														</strong>{" "}
+														{
+															realtorData
+																.interiorAnalysis
+																.interiorCondition
+														}
+													</li>
+												)}
+												{realtorData.interiorAnalysis
+													.notableFeatures.length >
+													0 && (
+													<li>
+														<strong>
+															Notable:
+														</strong>{" "}
+														{realtorData.interiorAnalysis.notableFeatures.join(
+															", ",
+														)}
+													</li>
+												)}
 											</ul>
 										</>
 									) : (
-										<p className="text-[#605A57] text-xs">Property is off-market — no listing photos available. Structured data from Zillow records.</p>
+										<p className="text-[#605A57] text-xs">
+											Property is off-market — no listing
+											photos available. Structured data
+											from Zillow records.
+										</p>
 									)}
 								</div>
 							</div>
@@ -880,13 +1328,13 @@ function ResearchAgentInner() {
 
 						{(realtorData || realtorError) && !realtorLoading && (
 							<div className="flex items-center gap-3 pt-2">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={goBack}
-							>
-								Back
-							</Button>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={goBack}
+								>
+									Back
+								</Button>
 								<Button
 									type="button"
 									onClick={() => setStep(STEPS.READY_360)}
@@ -899,11 +1347,12 @@ function ResearchAgentInner() {
 					</div>
 				)}
 
-								{step === STEPS.READY_360 && (
+				{step === STEPS.READY_360 && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 space-y-6">
 						<div className="space-y-1">
 							<p className="text-xs text-[#605A57]">
-								Here&apos;s a summary of what the Research Agent inferred for this property during the demo.
+								Here&apos;s a summary of what the Research Agent
+								inferred for this property during the demo.
 							</p>
 						</div>
 
@@ -922,40 +1371,79 @@ function ResearchAgentInner() {
 									<table className="w-full text-sm">
 										<tbody>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Address</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{effectiveAddress}</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Address
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													{effectiveAddress}
+												</td>
 											</tr>
 											{cadData ? (
 												<>
-												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Type</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.propertyType ?? "—"}</td>
-												</tr>
-												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Year built</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.yearBuilt ?? "—"}</td>
-												</tr>
-												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Living Area</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.livingAreaSqft ? `${cadData.livingAreaSqft.toLocaleString()} sq ft` : "—"}</td>
-												</tr>
-												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td className="py-2 pl-3 text-[#605A57]">Attached Garage</td>
-													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData.attachedGarageSqft ? `${cadData.attachedGarageSqft.toLocaleString()} sq ft` : "—"}</td>
-												</tr>
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">
+															Type
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{cadData.propertyType ??
+																"—"}
+														</td>
+													</tr>
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">
+															Year built
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{cadData.yearBuilt ??
+																"—"}
+														</td>
+													</tr>
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">
+															Living Area
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{cadData.livingAreaSqft
+																? `${cadData.livingAreaSqft.toLocaleString()} sq ft`
+																: "—"}
+														</td>
+													</tr>
+													<tr className="border-b border-[rgba(55,50,47,0.08)]">
+														<td className="py-2 pl-3 text-[#605A57]">
+															Attached Garage
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{cadData.attachedGarageSqft
+																? `${cadData.attachedGarageSqft.toLocaleString()} sq ft`
+																: "—"}
+														</td>
+													</tr>
 												</>
 											) : (
 												<tr className="border-b border-[rgba(55,50,47,0.08)]">
-													<td colSpan={2} className="py-2 pl-3 text-sm text-[#605A57] italic">CAD data not available</td>
+													<td
+														colSpan={2}
+														className="py-2 pl-3 text-sm text-[#605A57] italic"
+													>
+														CAD data not available
+													</td>
 												</tr>
 											)}
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Bedrooms</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">4</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Bedrooms
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													4
+												</td>
 											</tr>
 											<tr>
-												<td className="py-2 pl-3 text-[#605A57]">Bathrooms</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">2 full</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Bathrooms
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													2 full
+												</td>
 											</tr>
 										</tbody>
 									</table>
@@ -976,36 +1464,73 @@ function ResearchAgentInner() {
 									<table className="w-full text-sm">
 										<tbody>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Stories</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">1-story</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Stories
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													1-story
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Foundation type</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Slab-on-grade (no visible pier &amp; beam vents)</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Foundation type
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													Slab-on-grade (no visible
+													pier &amp; beam vents)
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Exterior wall materials</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">~90% brick veneer, ~10% siding/trim</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Exterior wall materials
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													~90% brick veneer, ~10%
+													siding/trim
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Roof covering type</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Architectural asphalt shingle</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Roof covering type
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													Architectural asphalt
+													shingle
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Roof style</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">Hip roof</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Roof style
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													Hip roof
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Solar panels</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">None visible</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Solar panels
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													None visible
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">Trampoline</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{mapsData?.trampolineVisible ? "Visible" : "None visible"}</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Trampoline
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													{mapsData?.trampolineVisible
+														? "Visible"
+														: "None visible"}
+												</td>
 											</tr>
 											<tr>
-												<td className="py-2 pl-3 text-[#605A57]">Swimming pool</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">None visible</td>
+												<td className="py-2 pl-3 text-[#605A57]">
+													Swimming pool
+												</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													None visible
+												</td>
 											</tr>
 										</tbody>
 									</table>
@@ -1026,36 +1551,78 @@ function ResearchAgentInner() {
 									<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
 										<table className="w-full text-sm">
 											<tbody>
-												{realtorData.flooring.length > 0 && (
+												{realtorData.flooring.length >
+													0 && (
 													<tr className="border-b border-[rgba(55,50,47,0.08)]">
-														<td className="py-2 pl-3 text-[#605A57]">Flooring</td>
-														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.flooring.join(", ")}</td>
+														<td className="py-2 pl-3 text-[#605A57]">
+															Flooring
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{realtorData.flooring.join(
+																", ",
+															)}
+														</td>
 													</tr>
 												)}
 												{!!realtorData.bathroomCount && (
 													<tr className="border-b border-[rgba(55,50,47,0.08)]">
-														<td className="py-2 pl-3 text-[#605A57]">Bathrooms</td>
-														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.bathroomCount}</td>
+														<td className="py-2 pl-3 text-[#605A57]">
+															Bathrooms
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{
+																realtorData.bathroomCount
+															}
+														</td>
 													</tr>
 												)}
-												{realtorData.hasFireplace !== null && (
+												{realtorData.hasFireplace !==
+													null && (
 													<tr className="border-b border-[rgba(55,50,47,0.08)]">
-														<td className="py-2 pl-3 text-[#605A57]">Fireplace</td>
-														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.hasFireplace ? "Yes" : "None"}</td>
+														<td className="py-2 pl-3 text-[#605A57]">
+															Fireplace
+														</td>
+														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+															{realtorData.hasFireplace
+																? "Yes"
+																: "None"}
+														</td>
 													</tr>
 												)}
 												{realtorData.interiorAnalysis && (
 													<>
-														{realtorData.interiorAnalysis.kitchenFinishes && (
+														{realtorData
+															.interiorAnalysis
+															.kitchenFinishes && (
 															<tr className="border-b border-[rgba(55,50,47,0.08)]">
-																<td className="py-2 pl-3 text-[#605A57]">Kitchen finishes</td>
-																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.interiorAnalysis.kitchenFinishes}</td>
+																<td className="py-2 pl-3 text-[#605A57]">
+																	Kitchen
+																	finishes
+																</td>
+																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																	{
+																		realtorData
+																			.interiorAnalysis
+																			.kitchenFinishes
+																	}
+																</td>
 															</tr>
 														)}
-														{realtorData.interiorAnalysis.interiorCondition && (
+														{realtorData
+															.interiorAnalysis
+															.interiorCondition && (
 															<tr>
-																<td className="py-2 pl-3 text-[#605A57]">Interior condition</td>
-																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.interiorAnalysis.interiorCondition}</td>
+																<td className="py-2 pl-3 text-[#605A57]">
+																	Interior
+																	condition
+																</td>
+																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+																	{
+																		realtorData
+																			.interiorAnalysis
+																			.interiorCondition
+																	}
+																</td>
 															</tr>
 														)}
 													</>
@@ -1064,17 +1631,21 @@ function ResearchAgentInner() {
 										</table>
 									</div>
 								) : (
-									<p className="text-xs text-[#605A57] italic">Realtor.com data not available</p>
+									<p className="text-xs text-[#605A57] italic">
+										Realtor.com data not available
+									</p>
 								)}
 							</div>
 						</div>
 
 						<div className="space-y-3">
 							<p className="text-sm font-medium text-[#37322F]">
-								Ready to go back to 360 to fill out replacement cost section?
+								Ready to go back to 360 to fill out replacement
+								cost section?
 							</p>
 							<p className="text-sm text-[#605A57]">
-								We can use this information to fill out the replacement cost section in 360 automatically.
+								We can use this information to fill out the
+								replacement cost section in 360 automatically.
 							</p>
 							<div className="flex items-start gap-3">
 								<Button
@@ -1090,39 +1661,100 @@ function ResearchAgentInner() {
 										className="bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white inline-flex items-center gap-2"
 										onClick={async () => {
 											try {
-												const res = await fetch(`${config.apiUrl}/api/proposals`, {
-													method: "POST",
-													headers: { "Content-Type": "application/json" },
-													body: JSON.stringify({
-														triggeredBy: agencyZoomLeadId ? "agency_zoom" : "apex_lead",
-														agentId: localStorage.getItem("lumina_active_agent") ?? "jake-ridley",
-														leadId: agencyZoomLeadId ?? undefined,
-														property: addrParts ?? { address: effectiveAddress, city: "", state: "", zip: "" },
-														contact: leadName
-															? { firstName: leadName.split(" ")[0] ?? "", lastName: leadName.split(" ").slice(1).join(" ") ?? "" }
-															: { firstName: "", lastName: "" },
-													}),
-												});
+												const res = await fetch(
+													`${config.apiUrl}/api/proposals`,
+													{
+														method: "POST",
+														headers: {
+															"Content-Type":
+																"application/json",
+														},
+														body: JSON.stringify({
+															triggeredBy:
+																agencyZoomLeadId
+																	? "agency_zoom"
+																	: "apex_lead",
+															agentId:
+																localStorage.getItem(
+																	"lumina_active_agent",
+																) ??
+																"jake-ridley",
+															leadId:
+																agencyZoomLeadId ??
+																undefined,
+															property:
+																addrParts ?? {
+																	address:
+																		effectiveAddress,
+																	city: "",
+																	state: "",
+																	zip: "",
+																},
+															contact: leadName
+																? {
+																		firstName:
+																			leadName.split(
+																				" ",
+																			)[0] ??
+																			"",
+																		lastName:
+																			leadName
+																				.split(
+																					" ",
+																				)
+																				.slice(
+																					1,
+																				)
+																				.join(
+																					" ",
+																				) ??
+																			"",
+																	}
+																: {
+																		firstName:
+																			"",
+																		lastName:
+																			"",
+																	},
+														}),
+													},
+												);
 												const json = await res.json();
 												if (json.proposalId) {
-													router.push(`/research-browser-run?proposalId=${json.proposalId}`);
+													router.push(
+														`/research-browser-run?proposalId=${json.proposalId}`,
+													);
 												}
 											} catch {
-												router.push("/research-browser-run");
+												router.push(
+													"/research-browser-run",
+												);
 											}
 										}}
 									>
 										<Sparkles className="w-4 h-4" />
 										<span>Fill using AI</span>
 									</Button>
-									<p className="text-xs text-[#605A57] mt-2">Docs we&apos;ll fill out:</p>
+									<p className="text-xs text-[#605A57] mt-2">
+										Docs we&apos;ll fill out:
+									</p>
 									<div className="flex flex-wrap items-center gap-2 justify-end mt-1">
 										<span className="inline-flex items-center gap-2 rounded-full border border-[rgba(55,50,47,0.12)] bg-[#F9FAFB] pl-1.5 pr-3 py-1.5 text-xs font-medium text-[#37322F]">
-											<img src="/alta%20logo.png" alt="" className="h-5 w-auto object-contain" aria-hidden />
+											<img
+												src="/alta%20logo.png"
+												alt=""
+												className="h-5 w-auto object-contain"
+												aria-hidden
+											/>
 											Alta
 										</span>
 										<span className="inline-flex items-center gap-2 rounded-full border border-[rgba(55,50,47,0.12)] bg-[#F9FAFB] pl-1.5 pr-3 py-1.5 text-xs font-medium text-[#37322F]">
-											<img src="/verisk-removebg.png" alt="" className="h-5 w-auto object-contain" aria-hidden />
+											<img
+												src="/verisk-removebg.png"
+												alt=""
+												className="h-5 w-auto object-contain"
+												aria-hidden
+											/>
 											360
 										</span>
 									</div>

@@ -104,8 +104,18 @@ export interface RealtorData {
     grades: string;
   }>;
 
+  // Listing history
+  listingHistory: Array<{
+    date: string;
+    price: number | null;
+    event: string;
+    pricePerSquareFoot: number | null;
+    source: string | null;
+  }>;
+
   // Meta
   streetViewUrl: string | null;
+  photoUrls: string[];
   hasInteriorPhotos: boolean;
   homeStatus: string | null;
 

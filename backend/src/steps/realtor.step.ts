@@ -97,28 +97,27 @@ export async function runRealtorStep(
     const isForSale = details.homeStatus === 'FOR_SALE';
     const photoCount = Number(details.photoCount ?? 0);
 
+    // Extract display photo URLs (all listings, up to MAX_PHOTOS)
+    const displayPhotoUrls: string[] = [];
+    for (const photo of originalPhotos) {
+      const p = photo as Record<string, unknown>;
+      const mixed = p.mixedSources as Record<string, unknown> | undefined;
+      const jpegs = (mixed?.jpeg as Record<string, unknown>[]) ?? [];
+      const large = jpegs.filter(
+        (j) => Number(j.width) >= 1024 && !String(j.url).includes('maps.googleapis.com'),
+      );
+      if (large.length > 0) displayPhotoUrls.push(String(large[0].url));
+      if (displayPhotoUrls.length >= MAX_PHOTOS) break;
+    }
+
     // Interior vision — only for active listings with photos
     let interiorAnalysis: RealtorData['interiorAnalysis'] = null;
     let hasInteriorPhotos = false;
 
-    if (isForSale && photoCount > 1) {
-      const photoUrls: string[] = [];
-      for (const photo of originalPhotos) {
-        const p = photo as Record<string, unknown>;
-        const mixed = p.mixedSources as Record<string, unknown> | undefined;
-        const jpegs = (mixed?.jpeg as Record<string, unknown>[]) ?? [];
-        const large = jpegs.filter(
-          (j) => Number(j.width) >= 1024 && !String(j.url).includes('maps.googleapis.com'),
-        );
-        if (large.length > 0) photoUrls.push(String(large[0].url));
-        if (photoUrls.length >= MAX_PHOTOS) break;
-      }
-
-      if (photoUrls.length > 0) {
-        hasInteriorPhotos = true;
-        logger.info({ proposalId, step: 'realtor', msg: 'Running Gemini vision on interior photos', count: photoUrls.length });
-        interiorAnalysis = await runGeminiVision(photoUrls);
-      }
+    if (isForSale && photoCount > 1 && displayPhotoUrls.length > 0) {
+      hasInteriorPhotos = true;
+      logger.info({ proposalId, step: 'realtor', msg: 'Running Gemini vision on interior photos', count: displayPhotoUrls.length });
+      interiorAnalysis = await runGeminiVision(displayPhotoUrls);
     }
 
     const flooring = Array.isArray(resoFacts.flooring) ? (resoFacts.flooring as string[]) : [];
@@ -161,7 +160,19 @@ export async function runRealtorStep(
         };
       }),
 
+      listingHistory: ((details.priceHistory as unknown[]) ?? []).map((entry) => {
+        const e = entry as Record<string, unknown>;
+        return {
+          date: String(e.date ?? ''),
+          price: e.price != null ? Number(e.price) : null,
+          event: String(e.event ?? ''),
+          pricePerSquareFoot: e.pricePerSquareFoot != null ? Number(e.pricePerSquareFoot) : null,
+          source: e.source != null ? String(e.source) : null,
+        };
+      }),
+
       streetViewUrl: (details.streetViewImageUrl as string) ?? null,
+      photoUrls: displayPhotoUrls,
       hasInteriorPhotos,
       homeStatus: (details.homeStatus as string) ?? null,
       interiorAnalysis,

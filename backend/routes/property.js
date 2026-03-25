@@ -86,6 +86,32 @@ router.get("/cad", async (req, res) => {
 });
 
 /**
+ * GET /api/property/autocomplete?input=9808+Coolidge
+ * Returns address suggestions from Google Places Autocomplete (US only).
+ */
+router.get("/autocomplete", async (req, res) => {
+	const { input } = req.query;
+	if (!input || String(input).length < 2) {
+		return res.json({ suggestions: [] });
+	}
+
+	const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
+	if (!mapsKey) {
+		return res.json({ suggestions: [] });
+	}
+
+	try {
+		const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(String(input))}&types=address&components=country:us&key=${mapsKey}`;
+		const response = await fetch(url);
+		const json = await response.json();
+		const suggestions = (json.predictions ?? []).map((p) => p.description);
+		return res.json({ suggestions });
+	} catch {
+		return res.json({ suggestions: [] });
+	}
+});
+
+/**
  * GET /api/property/geocode?address=9808+Coolidge+Dr,+McKinney,+TX+75070
  * Validates an address via Google Geocoding API.
  * Returns parsed components: address, city, state, zip, formattedAddress.
