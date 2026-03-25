@@ -61,13 +61,38 @@ router.get("/cad", async (req, res) => {
 		const identifier = property.identifier ?? {};
 		const sale = property.sale ?? {};
 
+		const stories = bldgSummary.levels ?? null;
+		const firstFloorSqft = size.bldgsize ?? size.firstfloorsize ?? null;
+		const upperFloorSqft = size.upperfloorsize ?? null;
+
+		// Story classification logic
+		let storyClassification = null;
+		let storyRatioPercent = null;
+		if (stories === 1) {
+			storyClassification = "1 story";
+		} else if (stories === 2) {
+			if (firstFloorSqft && upperFloorSqft && firstFloorSqft > 0) {
+				const ratio = upperFloorSqft / firstFloorSqft;
+				storyRatioPercent = Math.round(ratio * 100);
+				storyClassification = ratio >= 0.70 ? "2 stories" : "1.5 stories";
+			} else {
+				storyClassification = "2 stories";
+			}
+		} else if (stories != null) {
+			storyClassification = `${stories} stories`;
+		}
+
 		const cad = {
 			propertyType: summary.propclass ?? "Unknown",
 			yearBuilt: summary.yearbuilt ?? null,
 			livingAreaSqft: size.livingsize ?? null,
 			totalBuildingSqft: size.grosssize ?? null,
 			attachedGarageSqft: parking.prkgSize ?? null,
-			stories: bldgSummary.levels ?? null,
+			stories,
+			firstFloorSqft,
+			upperFloorSqft,
+			storyClassification,
+			storyRatioPercent,
 			foundationType: construction.foundationtype ?? null,
 			exteriorWallType: construction.wallType ?? null,
 			garageType: parking.garagetype ?? null,

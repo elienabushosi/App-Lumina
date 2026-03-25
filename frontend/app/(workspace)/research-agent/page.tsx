@@ -75,6 +75,10 @@ type CadData = {
 	totalBuildingSqft: number | null;
 	attachedGarageSqft: number | null;
 	stories: number | null;
+	firstFloorSqft: number | null;
+	upperFloorSqft: number | null;
+	storyClassification: string | null;
+	storyRatioPercent: number | null;
 	foundationType: string | null;
 	exteriorWallType: string | null;
 	garageType: string | null;
@@ -209,7 +213,19 @@ function ResearchAgentInner() {
 					label: "Year built",
 					value: cadData.yearBuilt?.toString() ?? "—",
 				},
-				{ label: "Stories", value: cadData.stories?.toString() ?? "—" },
+				{
+					label: "Stories",
+					value: cadData.storyClassification ?? cadData.stories?.toString() ?? "—",
+					note: (() => {
+						if (cadData.storyClassification === "1.5 stories" && cadData.storyRatioPercent != null && cadData.upperFloorSqft != null && cadData.firstFloorSqft != null) {
+							return `2nd floor is ${cadData.storyRatioPercent}% of 1st floor (${cadData.upperFloorSqft.toLocaleString()} / ${cadData.firstFloorSqft.toLocaleString()} sq ft) — classified as 1.5 stories`;
+						}
+						if (cadData.storyClassification === "2 stories" && cadData.storyRatioPercent != null && cadData.upperFloorSqft != null && cadData.firstFloorSqft != null) {
+							return `2nd floor is ${cadData.storyRatioPercent}% of 1st floor (${cadData.upperFloorSqft.toLocaleString()} / ${cadData.firstFloorSqft.toLocaleString()} sq ft) — classified as 2 stories`;
+						}
+						return null;
+					})(),
+				},
 				{
 					label: "Living area",
 					value: cadData.livingAreaSqft
@@ -667,7 +683,7 @@ function ResearchAgentInner() {
 								<table className="w-full text-sm">
 									<tbody>
 										{displayAttributes.map(
-											({ label, value }) => (
+											({ label, value, note }: { label: string; value: string; note?: string | null }) => (
 												<tr
 													key={label}
 													className="border-b border-[rgba(55,50,47,0.08)] last:border-b-0"
@@ -677,6 +693,11 @@ function ResearchAgentInner() {
 													</td>
 													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
 														{value}
+														{note && (
+															<div className="text-xs font-normal text-[#8A8480] mt-0.5">
+																{note}
+															</div>
+														)}
 													</td>
 												</tr>
 											),
@@ -830,12 +851,13 @@ function ResearchAgentInner() {
 										</p>
 										{cadData ? (
 											<ul className="text-xs text-[#37322F] space-y-1">
-												{cadData.stories != null && (
+												{(cadData.storyClassification ?? cadData.stories) != null && (
 													<li>
-														<strong>
-															Stories:
-														</strong>{" "}
-														{cadData.stories}
+														<strong>Stories:</strong>{" "}
+														{cadData.storyClassification ?? cadData.stories}
+														{cadData.storyRatioPercent != null && cadData.upperFloorSqft != null && cadData.firstFloorSqft != null && (
+															<span className="text-[#8A8480]"> (2nd floor {cadData.storyRatioPercent}% of 1st)</span>
+														)}
 													</li>
 												)}
 												{cadData.exteriorWallType && (
@@ -1455,7 +1477,14 @@ function ResearchAgentInner() {
 										<tbody>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
 												<td className="py-2 pl-3 text-[#605A57]">Stories</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData?.stories ?? "—"}</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
+													{cadData?.storyClassification ?? cadData?.stories ?? "—"}
+													{cadData?.storyRatioPercent != null && cadData?.upperFloorSqft != null && cadData?.firstFloorSqft != null && (
+														<div className="text-xs font-normal text-[#8A8480] mt-0.5">
+															2nd floor is {cadData.storyRatioPercent}% of 1st floor ({cadData.upperFloorSqft.toLocaleString()} / {cadData.firstFloorSqft.toLocaleString()} sq ft)
+														</div>
+													)}
+												</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
 												<td className="py-2 pl-3 text-[#605A57]">Foundation</td>

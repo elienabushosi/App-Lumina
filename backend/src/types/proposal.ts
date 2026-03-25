@@ -47,6 +47,10 @@ export interface CADData {
   attachedGarageSqft: number;
   // Structure fields (feed directly into Alta + 360 forms)
   stories?: number;
+  firstFloorSqft?: number | null;
+  upperFloorSqft?: number | null;
+  storyClassification?: string | null;
+  storyRatioPercent?: number | null;
   foundationType?: string;
   exteriorWallType?: string;
   garageType?: string;
