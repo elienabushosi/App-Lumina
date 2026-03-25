@@ -1,7 +1,10 @@
 // Authentication routes
 import express from "express";
 import Stripe from "stripe";
-import { supabase, supabaseAdmin } from "../lib/supabase.js";
+import { supabase as supabaseAuth, supabaseAdmin } from "../lib/supabase.js";
+// All table operations use the service role client to bypass RLS.
+// supabaseAuth (anon key) is kept only for auth.signInWithPassword.
+const supabase = supabaseAdmin;
 import { getUserFromToken } from "../lib/auth-utils.js";
 import { sendPasswordResetEmail } from "../lib/email.js";
 
@@ -296,7 +299,7 @@ router.post("/login", async (req, res) => {
 		// Try to sign in with Supabase Auth
 		// If successful, use Supabase Auth token; if not, use custom token
 		const { data: authData, error: authError } =
-			await supabase.auth.signInWithPassword({
+			await supabaseAuth.auth.signInWithPassword({
 				email: normalizedEmail,
 				password: password,
 			});

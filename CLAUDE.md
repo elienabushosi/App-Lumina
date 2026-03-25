@@ -559,8 +559,10 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
   when `typeof message === 'object'`.
 
 - **File editing — always use the native Edit / str_replace tools only.** Never
-  use Python, Node.js, or sed to read or modify files. If a pattern match fails,
-  re-read the file first, find the exact characters, then retry with the Edit tool.
+  use Python, Node.js, `node -e`, or sed to read or modify files — this includes
+  tab-indented `.ts` and `.tsx` files. If a pattern match fails, re-read the file
+  with the Read tool to get the exact characters (including indentation), then retry
+  with the Edit tool.
 
 ---
 
@@ -648,8 +650,8 @@ This requires knowing which RC agent maps to which Lumina user, and threading pe
 2. ✅ Wire middleware to `/api/calls`, `/api/proposals`, `/api/property/cad|maps|realtor`, `/api/research-reports`
 3. ✅ `research_reports` migration + backend routes + frontend wired (localStorage replaced)
 4. ✅ Dev bypass token (`dev-bypass-token`) — layout sets it, `getUserFromToken` recognises it in non-production
-5. **Write `organizations`, `users`, `joincodes` migrations** — tables don't exist yet; signup/login code is written but broken without them
-6. **Test real signup + login end-to-end** — create a real org + user, confirm bypass can be turned off, `auth_token` resolves through real `users` table
+5. ✅ **Write `organizations`, `users`, `joincodes` migrations** — `supabase/migrations/008_auth_tables.sql` run in Supabase Dashboard
+6. ✅ **Test real signup + login end-to-end** — both confirmed working. Signup creates org + user rows. Login returns custom token. `auth.js` uses `supabaseAdmin` for all table ops, `supabaseAuth` (anon client) for `signInWithPassword` only.
 7. **RC + AZ per-user auth model** — deferred until steps 5–6 complete
 8. **Stripe wiring** — deferred; per-seat subscription quantity updated when users join/leave org
 

@@ -133,7 +133,7 @@ function LoginPageContent() {
 				setIsSuccess(true);
 				// Navigate to home page after showing success
 				setTimeout(() => {
-					router.push("/research-agent");
+					router.push("/agency-zoom-leads");
 				}, 500);
 			}, 1000);
 		} catch (error) {
