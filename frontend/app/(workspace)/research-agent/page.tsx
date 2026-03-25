@@ -102,6 +102,12 @@ function ResearchAgentInner() {
 		state: string;
 		zip: string;
 	} | null>(null);
+
+	function getCadImage(state: string | null | undefined): { src: string; alt: string } {
+		if (state === "TX") return { src: "/texascad.png", alt: "Texas CAD" };
+		if (state === "NY") return { src: "/nycad.png", alt: "New York CAD" };
+		return { src: "/usacad.png", alt: "US Property Data" };
+	}
 	// Lead context from Agency Zoom (passed via URL params)
 	const [leadName, setLeadName] = useState<string | null>(null);
 	const [agencyZoomLeadId, setAgencyZoomLeadId] = useState<string | null>(
@@ -591,8 +597,7 @@ function ResearchAgentInner() {
 				{step === STEPS.CAD_LOADER && (
 					<div className="rounded-lg border border-[rgba(55,50,47,0.12)] bg-white p-6 flex flex-col items-center gap-4">
 						<img
-							src="/texascad.png"
-							alt="Texas CAD"
+							{...getCadImage(addrParts?.state)}
 							className="h-14 w-auto object-contain"
 						/>
 						<p className="text-sm text-[#605A57]">
@@ -636,8 +641,7 @@ function ResearchAgentInner() {
 						<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 							<div className="flex items-center gap-2 min-w-0">
 								<img
-									src="/texascad.png"
-									alt="Texas CAD"
+									{...getCadImage(addrParts?.state)}
 									className="h-6 w-auto shrink-0 object-contain"
 								/>
 								<p className="text-sm font-medium text-[#37322F]">
