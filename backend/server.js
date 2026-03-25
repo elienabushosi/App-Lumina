@@ -9,6 +9,7 @@ import ringcentralRoutes from "./routes/ringcentral.js";
 import callsRoutes from "./routes/calls.js";
 import agencyzoomRoutes from "./routes/agencyzoom.js";
 import propertyRoutes from "./routes/property.js";
+import researchReportsRoutes from "./routes/research-reports.js";
 import { startCallLogPoller } from "./lib/ringcentral-call-log-poller.js";
 import { startProposalWorker } from "./src/workers/proposal.worker.js";
 import { closeBrowser } from "./src/agents/browser.js";
@@ -43,6 +44,7 @@ app.use("/api/ringcentral", ringcentralRoutes);
 app.use("/api/calls", callsRoutes);
 app.use("/api/agencyzoom", agencyzoomRoutes);
 app.use("/api/property", propertyRoutes);
+app.use("/api/research-reports", researchReportsRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/triggers", triggerRoutes);
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { config } from "@/lib/config";
+import { getAuthToken } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,6 +111,8 @@ function ResearchAgentInner() {
 	}
 	// Lead context from Agency Zoom (passed via URL params)
 	const [leadName, setLeadName] = useState<string | null>(null);
+	const [leadPhone, setLeadPhone] = useState<string | null>(null);
+	const [leadEmail, setLeadEmail] = useState<string | null>(null);
 	const [agencyZoomLeadId, setAgencyZoomLeadId] = useState<string | null>(
 		null,
 	);
@@ -122,6 +125,8 @@ function ResearchAgentInner() {
 		state: string | null;
 		zip: string | null;
 		leadName: string | null;
+		leadPhone: string | null;
+		leadEmail: string | null;
 		cad: CadData | null;
 		maps: { roofStyle: string; poolVisible: boolean; solarPanelsVisible: boolean; trampolineVisible: boolean } | null;
 		realtor: RealtorApiData | null;
@@ -131,16 +136,7 @@ function ResearchAgentInner() {
 	// Real CAD data from ATTOM API
 	const [cadData, setCadData] = useState<CadData | null>(null);
 	const [cadError, setCadError] = useState<string | null>(null);
-
-	// Persist researchReport to localStorage keyed by agencyZoomLeadId
-	useEffect(() => {
-		if (researchReport?.agencyZoomLeadId) {
-			localStorage.setItem(
-				`research_report_${researchReport.agencyZoomLeadId}`,
-				JSON.stringify(researchReport),
-			);
-		}
-	}, [researchReport]);
+	const [reportDbId, setReportDbId] = useState<string | null>(null);
 
 	// Pre-fill address from query params (e.g. navigated from call detail or AZ leads page)
 	useEffect(() => {
@@ -149,6 +145,8 @@ function ResearchAgentInner() {
 		const s = searchParams.get("state");
 		const z = searchParams.get("zip");
 		const ln = searchParams.get("leadName");
+		const lp = searchParams.get("leadPhone");
+		const le = searchParams.get("leadEmail");
 		const azId = searchParams.get("agencyZoomLeadId");
 		const parts = [a, c, s, z].filter(Boolean);
 		if (parts.length > 0) {
@@ -157,6 +155,8 @@ function ResearchAgentInner() {
 				setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
 		}
 		if (ln) setLeadName(ln);
+		if (lp) setLeadPhone(lp);
+		if (le) setLeadEmail(le);
 		if (azId) setAgencyZoomLeadId(azId);
 	}, [searchParams]);
 	// Real realtor state
@@ -310,6 +310,7 @@ function ResearchAgentInner() {
 			const params = new URLSearchParams({ address: fullAddress });
 			const res = await fetch(
 				`${config.apiUrl}/api/property/realtor?${params}`,
+				{ headers: { Authorization: `Bearer ${getAuthToken()}` } },
 			);
 			const json = await res.json();
 			if (!res.ok) {
@@ -318,6 +319,21 @@ function ResearchAgentInner() {
 				const realtor = json as RealtorApiData;
 				setRealtorData(realtor);
 				setResearchReport(prev => prev ? { ...prev, realtor, status: "research_complete" } : prev);
+				// Persist to backend
+				if (reportDbId) {
+					try {
+						await fetch(`${config.apiUrl}/api/research-reports/${reportDbId}`, {
+							method: "PATCH",
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${getAuthToken()}`,
+							},
+							body: JSON.stringify({ realtor, status: "research_complete" }),
+						});
+					} catch {
+						// non-blocking
+					}
+				}
 			}
 		} catch (err) {
 			setRealtorError(
@@ -343,6 +359,7 @@ function ResearchAgentInner() {
 			const params = new URLSearchParams({ address: fullAddress });
 			const res = await fetch(
 				`${config.apiUrl}/api/property/maps?${params}`,
+				{ headers: { Authorization: `Bearer ${getAuthToken()}` } },
 			);
 			const json = await res.json();
 			if (!res.ok) {
@@ -357,12 +374,28 @@ function ResearchAgentInner() {
 					streetviewImage: json.images?.streetview ?? null,
 				};
 				setMapsData(maps);
-				setResearchReport(prev => prev ? { ...prev, maps: {
+				const mapsForReport = {
 					roofStyle: maps.roofStyle,
 					poolVisible: maps.poolVisible,
 					solarPanelsVisible: maps.solarPanelsVisible,
 					trampolineVisible: maps.trampolineVisible,
-				} } : prev);
+				};
+				setResearchReport(prev => prev ? { ...prev, maps: mapsForReport } : prev);
+				// Persist to backend
+				if (reportDbId) {
+					try {
+						await fetch(`${config.apiUrl}/api/research-reports/${reportDbId}`, {
+							method: "PATCH",
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${getAuthToken()}`,
+							},
+							body: JSON.stringify({ maps: mapsForReport }),
+						});
+					} catch {
+						// non-blocking
+					}
+				}
 			}
 		} catch (err) {
 			setMapsError(
@@ -403,6 +436,7 @@ function ResearchAgentInner() {
 		setMapsError(null);
 		setGeocodeError(null);
 		setResearchReport(null);
+		setReportDbId(null);
 
 		// Step 1: Require address selected from autocomplete (addrParts already geocoded on selection).
 		if (!addrParts) {
@@ -422,6 +456,7 @@ function ResearchAgentInner() {
 			});
 			const res = await fetch(
 				`${config.apiUrl}/api/property/cad?${params}`,
+				{ headers: { Authorization: `Bearer ${getAuthToken()}` } },
 			);
 			const json = await res.json();
 			if (!res.ok) {
@@ -433,18 +468,38 @@ function ResearchAgentInner() {
 			} else if (json.cad) {
 				const cad = json.cad as CadData;
 				setCadData(cad);
-				setResearchReport({
+				const report = {
 					agencyZoomLeadId,
 					address: parts.address,
 					city: parts.city,
 					state: parts.state,
 					zip: parts.zip,
 					leadName,
+					leadPhone,
+					leadEmail,
 					cad,
 					maps: null,
 					realtor: null,
-					status: "in_progress",
-				});
+					status: "in_progress" as const,
+				};
+				setResearchReport(report);
+				// Persist to backend
+				try {
+					const saveRes = await fetch(`${config.apiUrl}/api/research-reports`, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${getAuthToken()}`,
+						},
+						body: JSON.stringify(report),
+					});
+					if (saveRes.ok) {
+						const saved = await saveRes.json();
+						setReportDbId(saved.id);
+					}
+				} catch {
+					// non-blocking — report saves best-effort
+				}
 			} else {
 				setStep(STEPS.INPUT);
 				setGeocodeError(

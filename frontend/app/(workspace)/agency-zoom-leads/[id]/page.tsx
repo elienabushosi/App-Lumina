@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAuthToken } from "@/lib/auth";
 import { useParams, useRouter } from "next/navigation";
 import { config } from "@/lib/config";
 import { Button } from "@/components/ui/button";
@@ -109,15 +110,34 @@ export default function AgencyZoomLeadDetailPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [researchReport, setResearchReport] = useState<ResearchReport | null>(null);
 
-	// Load research report from localStorage
+	// Load research report from backend
 	useEffect(() => {
 		if (!id) return;
-		try {
-			const raw = localStorage.getItem(`research_report_${id}`);
-			if (raw) setResearchReport(JSON.parse(raw) as ResearchReport);
-		} catch {
-			// ignore malformed data
+		async function loadReport() {
+			try {
+				const res = await fetch(
+					`${config.apiUrl}/api/research-reports?agencyZoomLeadId=${id}`,
+					{ headers: { Authorization: `Bearer ${getAuthToken()}` } },
+				);
+				if (!res.ok) return;
+				const data = await res.json();
+				setResearchReport({
+					agencyZoomLeadId: data.agency_zoom_lead_id,
+					address: data.address,
+					city: data.city,
+					state: data.state,
+					zip: data.zip,
+					leadName: [data.lead_first_name, data.lead_last_name].filter(Boolean).join(" ") || null,
+					cad: data.cad_data,
+					maps: data.maps_data,
+					realtor: data.realtor_data,
+					status: data.status,
+				});
+			} catch {
+				// non-blocking
+			}
 		}
+		loadReport();
 	}, [id]);
 
 	useEffect(() => {
@@ -158,6 +178,8 @@ export default function AgencyZoomLeadDetailPage() {
 		if (lead.state) params.set("state", lead.state);
 		if (lead.zip) params.set("zip", lead.zip);
 		if (name) params.set("leadName", name);
+		if (lead.phone) params.set("leadPhone", lead.phone);
+		if (lead.email) params.set("leadEmail", lead.email);
 		params.set("agencyZoomLeadId", String(lead.id));
 
 		router.push(`/research-agent?${params.toString()}`);

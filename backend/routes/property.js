@@ -1,5 +1,6 @@
 import express from "express";
 import { runRealtorStep } from "../src/steps/realtor.step.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ const ATTOM_BASE_URL =
  * GET /api/property/cad?address=9808+Coolidge+Dr&city=McKinney&state=TX
  * Returns CAD data from ATTOM Data API for the given address.
  */
-router.get("/cad", async (req, res) => {
+router.get("/cad", requireAuth, async (req, res) => {
 	const { address, city, state } = req.query;
 
 	if (!address || !city || !state) {
@@ -198,7 +199,7 @@ router.get("/geocode", async (req, res) => {
  * Fetches satellite + street view images and runs Gemini vision analysis.
  * Returns roof style, pool visible, solar panels visible.
  */
-router.get("/maps", async (req, res) => {
+router.get("/maps", requireAuth, async (req, res) => {
 	const { address } = req.query;
 	if (!address) {
 		return res.status(400).json({ error: "address is required" });
@@ -307,7 +308,7 @@ Use "unknown" for roofStyle if not confident. Use false for booleans if not visi
  * Fetches structured property data from RealtyAPI (Zillow).
  * For active listings, also runs Gemini vision on interior photos.
  */
-router.get("/realtor", async (req, res) => {
+router.get("/realtor", requireAuth, async (req, res) => {
 	const { address } = req.query;
 	if (!address) {
 		return res.status(400).json({ error: "address is required" });

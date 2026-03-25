@@ -9,6 +9,17 @@ import { supabase } from "./supabase.js";
 export async function getUserFromToken(token) {
 	if (!token) return null;
 
+	// Dev bypass — only valid outside production
+	if (token === "dev-bypass-token" && process.env.NODE_ENV !== "production") {
+		return {
+			IdUser: "dev-user-id",
+			IdOrganization: "dev-org-id",
+			Email: "dev@example.com",
+			Name: "Dev User",
+			Role: "admin",
+		};
+	}
+
 	// Check if token is a custom token (format: custom_${userId}_${timestamp})
 	if (token.startsWith("custom_")) {
 		// Extract user ID from custom token

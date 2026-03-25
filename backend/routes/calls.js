@@ -2,8 +2,10 @@ import express from "express";
 import { getSupabase } from "../lib/supabase.js";
 import { extractLeadFromTranscript } from "../lib/claude-extract-lead.js";
 import { createAgencyZoomLeadForCall } from "../lib/agencyzoom-leads.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
+router.use(requireAuth);
 
 // GET /api/calls
 // List recent call_recordings for debugging UI.
@@ -17,6 +19,7 @@ router.get("/", async (req, res) => {
 			.select(
 				"id, id_organization, ringcentral_call_id, from_number, to_number, from_name, to_name, start_time, duration_sec, status, lead_status"
 			)
+			.eq("id_organization", req.user.IdOrganization)
 			.order("start_time", { ascending: false, nullsFirst: false })
 			.limit(limit);
 
@@ -45,6 +48,7 @@ router.get("/:id", async (req, res) => {
 				"id, id_organization, ringcentral_call_id, from_number, to_number, from_name, to_name, start_time, duration_sec, status, lead_status, transcript, lead_payload"
 			)
 			.eq("id", id)
+			.eq("id_organization", req.user.IdOrganization)
 			.single();
 
 		if (error || !data) {
@@ -71,6 +75,7 @@ router.post("/:id/extract-lead", async (req, res) => {
 				"id, ringcentral_call_id, status, transcript, transcript_words, lead_status, lead_payload"
 			)
 			.eq("id", id)
+			.eq("id_organization", req.user.IdOrganization)
 			.single();
 
 		if (error || !recording) {
@@ -143,6 +148,7 @@ router.post("/:id/push-agencyzoom", async (req, res) => {
 				"id, id_organization, ringcentral_call_id, lead_status, lead_payload"
 			)
 			.eq("id", id)
+			.eq("id_organization", req.user.IdOrganization)
 			.single();
 
 		if (error || !recording) {

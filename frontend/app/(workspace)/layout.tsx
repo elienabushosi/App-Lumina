@@ -157,6 +157,8 @@ export default function WorkspaceLayout({
 	useEffect(() => {
 		const checkAuth = async () => {
 			if (isBypassAuth) {
+				// Set a dev token so API calls that require auth can send a Bearer header
+				localStorage.setItem("auth_token", "dev-bypass-token");
 				setUserData({
 					user: {
 						IdUser: "dev-user-id",

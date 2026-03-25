@@ -4,8 +4,10 @@ import { proposalQueue } from '../lib/queue.js';
 import { provideMfaCode } from '../agents/mfa.js';
 import logger from '../lib/logger.js';
 import type { ProposalInput } from '../types/proposal.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+router.use(requireAuth);
 
 // POST /api/proposals
 // Accepts a pre-normalized ProposalInput and enqueues it directly.

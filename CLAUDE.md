@@ -280,6 +280,8 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
   state: string | null;
   zip: string | null;
   leadName: string | null;
+  leadPhone: string | null;
+  leadEmail: string | null;
   cad: CadData | null;
   maps: { roofStyle: string; poolVisible: boolean; solarPanelsVisible: boolean; trampolineVisible: boolean } | null;
   realtor: RealtorApiData | null;
@@ -571,11 +573,85 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
 - **No single research failure blocks the pipeline** — always produce a report
 - **MFA is a human gate** — never automate around Salesforce MFA
 - **One session file per agentId** — never share Salesforce sessions
-- **Multi-tenant from day one** — all data scoped to `id_organization`
+- **Multi-tenant from day one** — all data scoped to `id_organization`. Every new table must also include `created_by` (IdUser) for attribution.
+- **Auth middleware before new routes** — `requireAuth` middleware must be wired before adding any new API route that reads or writes user/org data.
+- **Do not fix the RC poller "default" yet** — fixing existing data is a coordinated migration; do it as a focused pass, not mixed with feature work.
+- **No Stripe yet** — per-seat billing is the end state but deferred until auth is hardened.
 - **Realtor.com for interior images** — not Zillow. Zillow was considered and
   dropped. Realtor.com is the data source for interior photo analysis.
 - **Post-MVP: Nearmap** for high-resolution aerial imagery and roof measurements.
   Do not implement now.
+
+---
+
+## Multi-Tenancy & Auth
+
+### Current State (2026-03-25, updated)
+
+The app uses `NEXT_PUBLIC_BYPASS_AUTH=1` for dev — the workspace layout sets `auth_token = "dev-bypass-token"` in localStorage, and `getUserFromToken` short-circuits to return a hardcoded dev user (`IdUser: "dev-user-id"`, `IdOrganization: "dev-org-id"`). No DB lookup happens. All dev data in Supabase is stored under `"dev-org-id"`.
+
+**What is built and working:**
+- `requireAuth` middleware (`backend/middleware/auth.js`) — wired to `/api/calls`, `/api/proposals`, `/api/property/cad|maps|realtor`, `/api/research-reports`
+- `research_reports` table in Supabase — rows saved progressively (CAD → POST, maps → PATCH, realtor → PATCH with `status: research_complete`). Includes `id_organization`, `created_by`, `lead_phone`, `lead_email`.
+- `/agency-zoom-leads/[id]` loads research report from DB on page load. Shows "Refresh Research" if report exists.
+- Dev bypass tested end-to-end — all steps return 200/201, rows confirmed in Supabase.
+
+**What is NOT wired yet:**
+- `organizations`, `users`, `joincodes` tables — **never migrated**. The signup/login code in `auth.js` references them but they don't exist in Supabase. Bypass auth is the only working auth path.
+- RingCentral poller and AgencyZoom routes hardcode `id_organization: "default"`. **Do not fix the poller yet — it is a coordinated migration.**
+- No Stripe wiring yet. End state: per-seat billing where each enabled user in an org = 1 seat on the org's subscription.
+
+### Ownership Model
+
+| Data | Scoped by | Notes |
+|---|---|---|
+| Calls, leads, research reports, proposals | `id_organization` | Shared across the whole org |
+| Who performed an action | `created_by` (IdUser) | Attribution / audit trail |
+| RingCentral / AZ connection | One per org | Managed by org admin |
+| Salesforce session files | One per user (`sessions/{userId}.json`) | Never shared across users |
+
+### Auth Middleware Plan
+
+A single Express middleware `requireAuth` in `backend/middleware/auth.js`:
+
+```js
+export async function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  const user = await getUserFromToken(token);
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  req.user = user; // { IdUser, IdOrganization, Role, Email }
+  next();
+}
+```
+
+Apply to all workspace routes. Each route then uses `req.user.IdOrganization` for DB filters and `req.user.IdUser` for `created_by`.
+
+### New Tables — Schema Requirements
+
+Every new table must include from day one:
+- `id_organization TEXT NOT NULL` — org isolation
+- `created_by TEXT NOT NULL` — user attribution (IdUser)
+
+This applies to `research_reports` and `proposals`. Do not add new tables without these columns.
+
+### RingCentral + AgencyZoom Auth Model (Deferred)
+
+RC and AZ use a two-level model that is more complex than a simple org swap:
+- **Org level:** Admin grants Lumina access once — one RC/AZ OAuth connection per org.
+- **User level:** Calls are attributed to the individual agent who handled them. AZ actions (create lead, update record) are taken as the authenticated Lumina user, not "the org".
+
+This requires knowing which RC agent maps to which Lumina user, and threading per-user identity into AZ actions. **Do not implement until requireAuth + research_reports are fully wired.** Tackle as a focused pass with a real agent (Alex/Jake) available to test against.
+
+### Build Order for Auth Hardening
+
+1. ✅ `requireAuth` middleware — `backend/middleware/auth.js`
+2. ✅ Wire middleware to `/api/calls`, `/api/proposals`, `/api/property/cad|maps|realtor`, `/api/research-reports`
+3. ✅ `research_reports` migration + backend routes + frontend wired (localStorage replaced)
+4. ✅ Dev bypass token (`dev-bypass-token`) — layout sets it, `getUserFromToken` recognises it in non-production
+5. **Write `organizations`, `users`, `joincodes` migrations** — tables don't exist yet; signup/login code is written but broken without them
+6. **Test real signup + login end-to-end** — create a real org + user, confirm bypass can be turned off, `auth_token` resolves through real `users` table
+7. **RC + AZ per-user auth model** — deferred until steps 5–6 complete
+8. **Stripe wiring** — deferred; per-seat subscription quantity updated when users join/leave org
 
 ---
 
