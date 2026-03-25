@@ -132,9 +132,14 @@ function ResearchAgentInner() {
 	const [cadData, setCadData] = useState<CadData | null>(null);
 	const [cadError, setCadError] = useState<string | null>(null);
 
-	// TODO: remove — debug log for researchReport state
+	// Persist researchReport to localStorage keyed by agencyZoomLeadId
 	useEffect(() => {
-		console.log("[researchReport]", researchReport);
+		if (researchReport?.agencyZoomLeadId) {
+			localStorage.setItem(
+				`research_report_${researchReport.agencyZoomLeadId}`,
+				JSON.stringify(researchReport),
+			);
+		}
 	}, [researchReport]);
 
 	// Pre-fill address from query params (e.g. navigated from call detail or AZ leads page)

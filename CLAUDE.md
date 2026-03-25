@@ -242,7 +242,7 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 
 **Full run timing:** ~52s total (research: 800ms, login/session restore: 1.4s, Alta Gemini loop: 22s, 360 Gemini loop: 24s)
 
-**What Gemini currently sees:** Blank pages — `navigateToAlta` and `navigateTo360` in `apex.step.ts` are stubs with placeholder URLs. Real Salesforce Lightning URLs needed from a Playwright codegen session with Alex Ridley's credentials.
+**What Gemini currently sees:** Blank pages — `navigateToAlta` and `navigateTo360` in `apex.step.ts` are stubs. Alta and 360 are tools *inside* APEX (Salesforce), not separate URLs — Gemini must navigate to them within the SF UI. Jake Ridley's + CG Insurance credentials are in `backend/.env`. Salesforce login via browser automation is working. Navigating within APEX to Alta/360 is the remaining piece — deferred.
 
 **Completed (2026-03-23):**
 - ✅ `/research-agent` "Fill using AI" button now triggers `POST /api/proposals` → gets `proposalId` → routes to `/research-browser-run?proposalId=xxx`
@@ -263,12 +263,29 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 - ✅ Photo carousel above DATA_GATHERED data table using Zillow photo URLs (`photoUrls[]` from realtor step)
 - ✅ READY_360 review: all fields always visible with "—" when data unavailable; removed duplicate Bathrooms from Interior section
 - ✅ Status pills renamed: "Realtor.com data stored" → "Zillow data stored", "Google Map image analysis data stored" → "G-Maps analysis data stored"
+- ✅ Research report persistence Phase 1: `researchReport` written to `localStorage` under `research_report_${agencyZoomLeadId}` on every state change in `/research-agent`. `/agency-zoom-leads/[id]` reads on load — renders report section (Property summary, Exterior & site, Interior finishes) at bottom; button shows "Refresh Research" if report exists.
+- ✅ Lead detail page field labels changed from ALL CAPS to title case (removed `uppercase` Tailwind class from all field label spans)
 
 **Remaining:**
-1. Playwright codegen session with Alex's credentials to capture real `navigateToAlta` + `navigateTo360` Salesforce URLs
-2. Wire `researchReport` state to backend: `POST /api/research-reports` on CAD success, `PATCH /api/research-reports/:id` on maps + realtor success. Upsert on `agency_zoom_lead_id` (one row per lead, always latest)
-3. Display research report on `/agency-zoom-leads/[id]` page — fetch by `agencyZoomLeadId`, show at bottom, change "Start Research" → "Refresh Research" if report exists
-4. Session saved as `sessions/alex-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
+1. Navigate within APEX to Alta and 360 — these are tools inside Salesforce, not separate URLs. Jake Ridley's + CG Insurance credentials are in `backend/.env`. Login works. Gemini needs to navigate within the SF UI to reach Alta/360 and fill the forms.
+2. **Research report persistence Phase 2 (after UI validated):** Replace localStorage with Supabase. Write migration based on confirmed `researchReport` shape. Swap localStorage reads/writes for `POST /api/research-reports` (on CAD success) and `PATCH /api/research-reports/:id` (on maps + realtor success). Upsert on `agency_zoom_lead_id` (one row per lead, always latest).
+3. Session saved as `sessions/jake-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
+
+**`researchReport` shape (confirmed, drives Phase 2 DB schema):**
+```typescript
+{
+  agencyZoomLeadId: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  leadName: string | null;
+  cad: CadData | null;
+  maps: { roofStyle: string; poolVisible: boolean; solarPanelsVisible: boolean; trampolineVisible: boolean } | null;
+  realtor: RealtorApiData | null;
+  status: "in_progress" | "research_complete";
+}
+```
 
 ### CAD Research — ATTOM Data API
 
@@ -539,13 +556,9 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
   not `logger.info('message', { ... })`. The printf format must JSON.stringify
   when `typeof message === 'object'`.
 
-- **Edit tool + tab-indented TSX/TS files**: The Edit tool fails to match
-  `old_string` when the file uses tab indentation (all `.tsx`/`.ts` files in
-  this repo). For targeted multi-line replacements, use `node -e` with a
-  line-number splice (`lines.splice(index, deleteCount, ...newLines)`). Do NOT
-  use Python or sed — use Node only. For single-line changes, read the exact
-  line number with Read first, then use `node -e` to replace that specific
-  index. Never use Python scripts for file edits in this repo.
+- **File editing — always use the native Edit / str_replace tools only.** Never
+  use Python, Node.js, or sed to read or modify files. If a pattern match fails,
+  re-read the file first, find the exact characters, then retry with the Edit tool.
 
 ---
 
@@ -570,10 +583,9 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
 
 - **Alex Ridley** — Farmers Insurance, Texas (primary design partner, 8 agents)
   First test property: 9808 Coolidge Dr, McKinney TX 75070
-- **Jake Ridley** — same agency group as Alex
+- **Jake Ridley** — same agency group as Alex. Credentials in `backend/.env` — used for Salesforce login automation.
 - **Jeremy Johnson** — separate Farmers agency
-- **CG Insurance** — separate Farmers agency
-  CG will provide Salesforce credentials for Playwright codegen session
+- **CG Insurance** — separate Farmers agency. Credentials in `backend/.env`.
 
 ---
 
