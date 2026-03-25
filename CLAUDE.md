@@ -253,10 +253,22 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 - ✅ Real Realtor.com data via RealtyAPI (Zillow); Gemini interior photo analysis for active listings
 - ✅ Backend consolidated: proposal pipeline (formerly port 3003) merged into main Express server (port 3002)
 
+**Completed (2026-03-25):**
+- ✅ Story classification logic: CAD stories=1 → "1 story"; stories=2 + upper/first ratio ≥70% → "2 stories"; <70% → "1.5 stories". `storyClassification` + `storyRatioPercent` added to CADData type and displayed with agent notation in DATA_PULLED table and READY_360 review
+- ✅ Dynamic CAD image by state: TX → `texascad.png`, NY → `nycad.png`, all others → `usacad.png`. Uses `addrParts.state` which is available by the time either image renders
+- ✅ Address input: replaced geocode-on-click + heuristic fallback with single mechanism — geocode fires immediately on autocomplete selection, `addrParts` stored at that point. Research button disabled until valid selection made. Typing clears `addrParts`, forcing re-selection. No random text reaches the backend
+- ✅ `researchReport` state built progressively: initialized with CAD on first fetch, patched with maps data, patched with realtor data + `status: "research_complete"`. Mirrors `research_reports` DB schema. Ready to wire to backend save calls
+- ✅ Removed schools section from DATA_GATHERED and READY_360 review
+- ✅ Added listing history (from RealtyAPI `priceHistory`) to DATA_GATHERED display
+- ✅ Photo carousel above DATA_GATHERED data table using Zillow photo URLs (`photoUrls[]` from realtor step)
+- ✅ READY_360 review: all fields always visible with "—" when data unavailable; removed duplicate Bathrooms from Interior section
+- ✅ Status pills renamed: "Realtor.com data stored" → "Zillow data stored", "Google Map image analysis data stored" → "G-Maps analysis data stored"
+
 **Remaining:**
 1. Playwright codegen session with Alex's credentials to capture real `navigateToAlta` + `navigateTo360` Salesforce URLs
-2. Run Supabase migration 006 (`research_reports` table) and wire research steps to save to DB
-3. Session saved as `sessions/alex-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
+2. Wire `researchReport` state to backend: `POST /api/research-reports` on CAD success, `PATCH /api/research-reports/:id` on maps + realtor success. Upsert on `agency_zoom_lead_id` (one row per lead, always latest)
+3. Display research report on `/agency-zoom-leads/[id]` page — fetch by `agencyZoomLeadId`, show at bottom, change "Start Research" → "Refresh Research" if report exists
+4. Session saved as `sessions/alex-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
 
 ### CAD Research — ATTOM Data API
 
@@ -526,6 +538,14 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
 - **Winston object logs**: Pass structured objects to `logger.info({ ... })`,
   not `logger.info('message', { ... })`. The printf format must JSON.stringify
   when `typeof message === 'object'`.
+
+- **Edit tool + tab-indented TSX/TS files**: The Edit tool fails to match
+  `old_string` when the file uses tab indentation (all `.tsx`/`.ts` files in
+  this repo). For targeted multi-line replacements, use `node -e` with a
+  line-number splice (`lines.splice(index, deleteCount, ...newLines)`). Do NOT
+  use Python or sed — use Node only. For single-line changes, read the exact
+  line number with Read first, then use `node -e` to replace that specific
+  index. Never use Python scripts for file edits in this repo.
 
 ---
 

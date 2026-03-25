@@ -113,9 +113,29 @@ function ResearchAgentInner() {
 	const [agencyZoomLeadId, setAgencyZoomLeadId] = useState<string | null>(
 		null,
 	);
+
+	// Research report — built progressively as each step is confirmed
+	const [researchReport, setResearchReport] = useState<{
+		agencyZoomLeadId: string | null;
+		address: string | null;
+		city: string | null;
+		state: string | null;
+		zip: string | null;
+		leadName: string | null;
+		cad: CadData | null;
+		maps: { roofStyle: string; poolVisible: boolean; solarPanelsVisible: boolean; trampolineVisible: boolean } | null;
+		realtor: RealtorApiData | null;
+		status: "in_progress" | "research_complete";
+	} | null>(null);
+
 	// Real CAD data from ATTOM API
 	const [cadData, setCadData] = useState<CadData | null>(null);
 	const [cadError, setCadError] = useState<string | null>(null);
+
+	// TODO: remove — debug log for researchReport state
+	useEffect(() => {
+		console.log("[researchReport]", researchReport);
+	}, [researchReport]);
 
 	// Pre-fill address from query params (e.g. navigated from call detail or AZ leads page)
 	useEffect(() => {
@@ -290,7 +310,9 @@ function ResearchAgentInner() {
 			if (!res.ok) {
 				setRealtorError(json.error ?? `API error ${res.status}`);
 			} else {
-				setRealtorData(json as RealtorApiData);
+				const realtor = json as RealtorApiData;
+				setRealtorData(realtor);
+				setResearchReport(prev => prev ? { ...prev, realtor, status: "research_complete" } : prev);
 			}
 		} catch (err) {
 			setRealtorError(
@@ -321,14 +343,21 @@ function ResearchAgentInner() {
 			if (!res.ok) {
 				setMapsError(json.error ?? `API error ${res.status}`);
 			} else {
-				setMapsData({
+				const maps = {
 					roofStyle: json.maps?.roofStyle ?? "unknown",
 					poolVisible: Boolean(json.maps?.poolVisible),
 					solarPanelsVisible: Boolean(json.maps?.solarPanelsVisible),
 					trampolineVisible: Boolean(json.maps?.trampolineVisible),
 					satelliteImage: json.images?.satellite ?? null,
 					streetviewImage: json.images?.streetview ?? null,
-				});
+				};
+				setMapsData(maps);
+				setResearchReport(prev => prev ? { ...prev, maps: {
+					roofStyle: maps.roofStyle,
+					poolVisible: maps.poolVisible,
+					solarPanelsVisible: maps.solarPanelsVisible,
+					trampolineVisible: maps.trampolineVisible,
+				} } : prev);
 			}
 		} catch (err) {
 			setMapsError(
@@ -368,71 +397,15 @@ function ResearchAgentInner() {
 		setMapsData(null);
 		setMapsError(null);
 		setGeocodeError(null);
+		setResearchReport(null);
 
-		// Step 1: Validate address via Google Geocoding.
-		// Only hard-block on ZERO_RESULTS (address truly not found).
-		// API-level errors (REQUEST_DENIED, etc.) fall back to heuristic parsing.
-		setGeocodeValidating(true);
-		let parts: {
-			address: string;
-			city: string;
-			state: string;
-			zip: string;
-		} | null = null;
-		try {
-			const params = new URLSearchParams({ address: effectiveAddress });
-			const res = await fetch(
-				`${config.apiUrl}/api/property/geocode?${params}`,
-			);
-			const json = await res.json();
-			if (res.status === 404) {
-				// Google confirmed the address does not exist.
-				setGeocodeError(
-					json.error ??
-						"Address not found — please check and try again.",
-				);
-				setGeocodeValidating(false);
-				return;
-			}
-			if (res.ok) {
-				parts = {
-					address: json.address,
-					city: json.city,
-					state: json.state,
-					zip: json.zip,
-				};
-				setAddress(json.formattedAddress);
-				setAddrParts(parts);
-			}
-			// For any other error (502, 500) fall through to heuristic parsing below.
-		} catch {
-			// Network error — fall through to heuristic parsing.
+		// Step 1: Require address selected from autocomplete (addrParts already geocoded on selection).
+		if (!addrParts) {
+			setGeocodeError("Please select an address from the suggestions — start typing to see options.");
+			return;
 		}
-		setGeocodeValidating(false);
+		const parts = addrParts;
 
-		// Step 1b: Heuristic fallback if geocoding was unavailable.
-		if (!parts) {
-			const segments = effectiveAddress
-				.split(",")
-				.map((s: string) => s.trim());
-			if (segments.length >= 3) {
-				const stateZip = segments[segments.length - 1]
-					.trim()
-					.split(/\s+/);
-				parts = {
-					address: segments[0],
-					city: segments[segments.length - 2],
-					state: stateZip[0] ?? "",
-					zip: stateZip[1] ?? "",
-				};
-				setAddrParts(parts);
-			} else {
-				setGeocodeError(
-					"Please enter a valid address — e.g. 9813 Pierce Dr, McKinney, TX 75072",
-				);
-				return;
-			}
-		}
 
 		// Step 2: Proceed to CAD lookup with geocoded components.
 		setStep(STEPS.CAD_LOADER);
@@ -453,7 +426,20 @@ function ResearchAgentInner() {
 					"No property record found for this address. Try a different address or check the spelling.",
 				);
 			} else if (json.cad) {
-				setCadData(json.cad as CadData);
+				const cad = json.cad as CadData;
+				setCadData(cad);
+				setResearchReport({
+					agencyZoomLeadId,
+					address: parts.address,
+					city: parts.city,
+					state: parts.state,
+					zip: parts.zip,
+					leadName,
+					cad,
+					maps: null,
+					realtor: null,
+					status: "in_progress",
+				});
 			} else {
 				setStep(STEPS.INPUT);
 				setGeocodeError(
@@ -542,6 +528,7 @@ function ResearchAgentInner() {
 									value={address}
 									onChange={(e) => {
 										setAddress(e.target.value);
+										setAddrParts(null);
 										setGeocodeError(null);
 									}}
 									onKeyDown={(e) => {
@@ -560,12 +547,26 @@ function ResearchAgentInner() {
 												key={i}
 												type="button"
 												className="w-full px-3 py-2.5 text-left text-sm text-[#37322F] hover:bg-[#f3f4f6] border-b border-[rgba(55,50,47,0.06)] last:border-b-0"
-												onMouseDown={(e) => {
+												onMouseDown={async (e) => {
 													e.preventDefault();
 													setAddress(s);
 													setSuggestions([]);
 													setShowDropdown(false);
 													setGeocodeError(null);
+													// Geocode immediately on selection — parse parts once, not on every Research click
+													try {
+														const params = new URLSearchParams({ address: s });
+														const res = await fetch(`${config.apiUrl}/api/property/geocode?${params}`);
+														const json = await res.json();
+														if (res.ok) {
+															setAddress(json.formattedAddress);
+															setAddrParts({ address: json.address, city: json.city, state: json.state, zip: json.zip });
+														} else {
+															setGeocodeError(json.error ?? "Could not validate this address — please try another.");
+														}
+													} catch {
+														setGeocodeError("Could not reach the address validation service.");
+													}
 												}}
 											>
 												{s}
@@ -577,10 +578,10 @@ function ResearchAgentInner() {
 							<Button
 								type="button"
 								onClick={handleResearch}
-								disabled={geocodeValidating}
+								disabled={!addrParts}
 								className="h-10 px-6 bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white shrink-0 disabled:opacity-60"
 							>
-								{geocodeValidating ? "Validating…" : "Research"}
+								Research
 								<Sparkles className="w-4 h-4 ml-2" />
 							</Button>
 						</div>
