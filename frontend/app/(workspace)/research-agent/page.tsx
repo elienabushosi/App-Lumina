@@ -492,13 +492,13 @@ function ResearchAgentInner() {
 									analysisComplete) && (
 									<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
 										<CircleCheck className="w-3.5 h-3.5" />
-										Google Map image analysis data stored
+										G-Maps analysis data stored
 									</span>
 								)}
 							{zillowRedfinComplete && (
 								<span className="inline-flex items-center gap-1.5 rounded-full bg-[#6C70BA]/10 px-3 py-1 text-xs font-medium text-[#6C70BA]">
 									<CircleCheck className="w-3.5 h-3.5" />
-									Realtor.com data stored
+									Zillow data stored
 								</span>
 							)}
 						</div>
@@ -1429,22 +1429,12 @@ function ResearchAgentInner() {
 													</td>
 												</tr>
 											)}
-											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Bedrooms
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													4
-												</td>
-											</tr>
-											<tr>
-												<td className="py-2 pl-3 text-[#605A57]">
-													Bathrooms
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													2 full
-												</td>
-											</tr>
+											{!!realtorData?.bathroomCount && (
+												<tr>
+													<td className="py-2 pl-3 text-[#605A57]">Bathrooms</td>
+													<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData.bathroomCount}</td>
+												</tr>
+											)}
 										</tbody>
 									</table>
 								</div>
@@ -1464,73 +1454,36 @@ function ResearchAgentInner() {
 									<table className="w-full text-sm">
 										<tbody>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Stories
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													1-story
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Stories</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData?.stories ?? "—"}</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Foundation type
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													Slab-on-grade (no visible
-													pier &amp; beam vents)
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Foundation</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData?.foundationType ?? "—"}</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Exterior wall materials
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													~90% brick veneer, ~10%
-													siding/trim
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Exterior wall</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData?.exteriorWallType ?? "—"}</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Roof covering type
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													Architectural asphalt
-													shingle
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Roof cover</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{cadData?.roofCover ?? "—"}</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Roof style
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													Hip roof
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Roof style</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{mapsData?.roofStyle ?? "—"}</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Solar panels
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													None visible
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Solar panels</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{mapsData ? (mapsData.solarPanelsVisible ? "Visible" : "None visible") : "—"}</td>
 											</tr>
 											<tr className="border-b border-[rgba(55,50,47,0.08)]">
-												<td className="py-2 pl-3 text-[#605A57]">
-													Trampoline
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													{mapsData?.trampolineVisible
-														? "Visible"
-														: "None visible"}
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Trampoline</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{mapsData ? (mapsData.trampolineVisible ? "Visible" : "None visible") : "—"}</td>
 											</tr>
 											<tr>
-												<td className="py-2 pl-3 text-[#605A57]">
-													Swimming pool
-												</td>
-												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-													None visible
-												</td>
+												<td className="py-2 pl-3 text-[#605A57]">Swimming pool</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{mapsData ? (mapsData.poolVisible ? "Visible" : "None visible") : "—"}</td>
 											</tr>
 										</tbody>
 									</table>
@@ -1547,94 +1500,28 @@ function ResearchAgentInner() {
 										Interior finishes &amp; quality
 									</h3>
 								</div>
-								{realtorData ? (
-									<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
-										<table className="w-full text-sm">
-											<tbody>
-												{realtorData.flooring.length >
-													0 && (
-													<tr className="border-b border-[rgba(55,50,47,0.08)]">
-														<td className="py-2 pl-3 text-[#605A57]">
-															Flooring
-														</td>
-														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-															{realtorData.flooring.join(
-																", ",
-															)}
-														</td>
-													</tr>
-												)}
-												{!!realtorData.bathroomCount && (
-													<tr className="border-b border-[rgba(55,50,47,0.08)]">
-														<td className="py-2 pl-3 text-[#605A57]">
-															Bathrooms
-														</td>
-														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-															{
-																realtorData.bathroomCount
-															}
-														</td>
-													</tr>
-												)}
-												{realtorData.hasFireplace !==
-													null && (
-													<tr className="border-b border-[rgba(55,50,47,0.08)]">
-														<td className="py-2 pl-3 text-[#605A57]">
-															Fireplace
-														</td>
-														<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-															{realtorData.hasFireplace
-																? "Yes"
-																: "None"}
-														</td>
-													</tr>
-												)}
-												{realtorData.interiorAnalysis && (
-													<>
-														{realtorData
-															.interiorAnalysis
-															.kitchenFinishes && (
-															<tr className="border-b border-[rgba(55,50,47,0.08)]">
-																<td className="py-2 pl-3 text-[#605A57]">
-																	Kitchen
-																	finishes
-																</td>
-																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-																	{
-																		realtorData
-																			.interiorAnalysis
-																			.kitchenFinishes
-																	}
-																</td>
-															</tr>
-														)}
-														{realtorData
-															.interiorAnalysis
-															.interiorCondition && (
-															<tr>
-																<td className="py-2 pl-3 text-[#605A57]">
-																	Interior
-																	condition
-																</td>
-																<td className="py-2 pr-3 text-right font-medium text-[#37322F]">
-																	{
-																		realtorData
-																			.interiorAnalysis
-																			.interiorCondition
-																	}
-																</td>
-															</tr>
-														)}
-													</>
-												)}
-											</tbody>
-										</table>
-									</div>
-								) : (
-									<p className="text-xs text-[#605A57] italic">
-										Realtor.com data not available
-									</p>
-								)}
+								<div className="overflow-x-auto rounded-md border border-[rgba(55,50,47,0.08)]">
+									<table className="w-full text-sm">
+										<tbody>
+											<tr className="border-b border-[rgba(55,50,47,0.08)]">
+												<td className="py-2 pl-3 text-[#605A57]">Flooring</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData?.flooring.length ? realtorData.flooring.join(", ") : "—"}</td>
+											</tr>
+											<tr className="border-b border-[rgba(55,50,47,0.08)]">
+												<td className="py-2 pl-3 text-[#605A57]">Fireplace</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData?.hasFireplace != null ? (realtorData.hasFireplace ? "Yes" : "None") : "—"}</td>
+											</tr>
+											<tr className="border-b border-[rgba(55,50,47,0.08)]">
+												<td className="py-2 pl-3 text-[#605A57]">Kitchen finishes</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData?.interiorAnalysis?.kitchenFinishes ?? "—"}</td>
+											</tr>
+											<tr>
+												<td className="py-2 pl-3 text-[#605A57]">Interior condition</td>
+												<td className="py-2 pr-3 text-right font-medium text-[#37322F]">{realtorData?.interiorAnalysis?.interiorCondition ?? "—"}</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
 							</div>
 						</div>
 
