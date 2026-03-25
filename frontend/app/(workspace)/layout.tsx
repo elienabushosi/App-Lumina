@@ -20,26 +20,28 @@ import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	SidebarMenuSub,
+	SidebarMenuSubItem,
+	SidebarMenuSubButton,
 	SidebarProvider,
 	SidebarInset,
 	SidebarTrigger,
 	useSidebar,
 } from "@/components/ui/sidebar";
 import {
-	Home,
-	Search,
-	FileText,
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
 	Settings,
 	LogOut,
 	User,
-	FileCheck,
-	Users,
-	SquareStack,
-	SquareDashed,
-	Box,
 	ScanSearch,
 	Phone,
 	ContactRound,
+	Bot,
+	ChevronRight,
 } from "lucide-react";
 
 const AGENT_LABELS: Record<string, string> = {
@@ -263,43 +265,61 @@ export default function WorkspaceLayout({
 					<SidebarGroup>
 						<SidebarGroupContent>
 							<SidebarMenu>
+								{/* Leads */}
 								<SidebarMenuItem>
 									<SidebarMenuButton
-										tooltip="Agency Zoom Leads"
+										tooltip="Leads"
 										isActive={pathname.startsWith("/agency-zoom-leads")}
 										asChild
 									>
 										<Link href="/agency-zoom-leads">
 											<ContactRound className="size-4" />
-											<span>AZ Leads</span>
+											<span>Leads</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
-								<SidebarMenuItem>
-									<SidebarMenuButton
-										tooltip="Call Listener Agent"
-										isActive={pathname === "/calls"}
-										asChild
-									>
-										<Link href="/calls">
-											<Phone className="size-4" />
-											<span>Call Listener Agent</span>
-										</Link>
-									</SidebarMenuButton>
-								</SidebarMenuItem>
-								<SidebarMenuItem>
-									<SidebarMenuButton
-										tooltip="Research Agent"
-										isActive={pathname === "/research-agent"}
-										asChild
-									>
-										<Link href="/research-agent">
-											<ScanSearch className="size-4" />
-											<span>Research Agent</span>
-										</Link>
-									</SidebarMenuButton>
-								</SidebarMenuItem>
-								{/* Previously: Home, Main Page 1, Main Page 2, Items, Team – see git history to restore */}
+
+								{/* AI Agents — collapsible group */}
+								<Collapsible
+									defaultOpen={pathname === "/research-agent" || pathname === "/calls" || pathname === "/research-browser-run"}
+									className="group/collapsible"
+								>
+									<SidebarMenuItem>
+										<CollapsibleTrigger asChild>
+											<SidebarMenuButton tooltip="AI Agents">
+												<Bot className="size-4" />
+												<span>AI Agents</span>
+												<ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+											</SidebarMenuButton>
+										</CollapsibleTrigger>
+										<CollapsibleContent>
+											<SidebarMenuSub>
+												<SidebarMenuSubItem>
+													<SidebarMenuSubButton
+														asChild
+														isActive={pathname === "/research-agent" || pathname === "/research-browser-run"}
+													>
+														<Link href="/research-agent">
+															<ScanSearch className="size-4" />
+															<span>Research Agent</span>
+														</Link>
+													</SidebarMenuSubButton>
+												</SidebarMenuSubItem>
+												<SidebarMenuSubItem>
+													<SidebarMenuSubButton
+														asChild
+														isActive={pathname === "/calls"}
+													>
+														<Link href="/calls">
+															<Phone className="size-4" />
+															<span>Call Listener</span>
+														</Link>
+													</SidebarMenuSubButton>
+												</SidebarMenuSubItem>
+											</SidebarMenuSub>
+										</CollapsibleContent>
+									</SidebarMenuItem>
+								</Collapsible>
 							</SidebarMenu>
 						</SidebarGroupContent>
 					</SidebarGroup>

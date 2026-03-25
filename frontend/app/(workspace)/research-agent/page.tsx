@@ -13,6 +13,7 @@ import {
 	Sofa,
 	CircleCheck,
 	ListRestart,
+	CircleX,
 } from "lucide-react";
 
 type RealtorApiData = {
@@ -127,6 +128,8 @@ function ResearchAgentInner() {
 		streetviewImage: string | null;
 	} | null>(null);
 	const [mapsError, setMapsError] = useState<string | null>(null);
+	const [geocodeValidating, setGeocodeValidating] = useState(false);
+	const [geocodeError, setGeocodeError] = useState<string | null>(null);
 
 	// Step 1: After Research click, show CAD loader then auto-advance to attributes
 	useEffect(() => {
@@ -235,18 +238,41 @@ function ResearchAgentInner() {
 	};
 
 	const handleResearch = async () => {
-		setAddress(effectiveAddress);
 		setCadData(null);
 		setCadError(null);
 		setMapsData(null);
 		setMapsError(null);
-		setStep(STEPS.CAD_LOADER);
+		setGeocodeError(null);
 
-		// Parse address components from typed input if not provided via URL params.
-		// Expects format: "123 Main St, City, ST 12345" or "123 Main St, City, ST"
-		let parts = addrParts;
-		if (!parts && effectiveAddress) {
-			const segments = effectiveAddress.split(",").map(s => s.trim());
+		// Step 1: Validate address via Google Geocoding.
+		// Only hard-block on ZERO_RESULTS (address truly not found).
+		// API-level errors (REQUEST_DENIED, etc.) fall back to heuristic parsing.
+		setGeocodeValidating(true);
+		let parts: { address: string; city: string; state: string; zip: string } | null = null;
+		try {
+			const params = new URLSearchParams({ address: effectiveAddress });
+			const res = await fetch(`${config.apiUrl}/api/property/geocode?${params}`);
+			const json = await res.json();
+			if (res.status === 404) {
+				// Google confirmed the address does not exist.
+				setGeocodeError(json.error ?? "Address not found — please check and try again.");
+				setGeocodeValidating(false);
+				return;
+			}
+			if (res.ok) {
+				parts = { address: json.address, city: json.city, state: json.state, zip: json.zip };
+				setAddress(json.formattedAddress);
+				setAddrParts(parts);
+			}
+			// For any other error (502, 500) fall through to heuristic parsing below.
+		} catch {
+			// Network error — fall through to heuristic parsing.
+		}
+		setGeocodeValidating(false);
+
+		// Step 1b: Heuristic fallback if geocoding was unavailable.
+		if (!parts) {
+			const segments = effectiveAddress.split(",").map((s: string) => s.trim());
 			if (segments.length >= 3) {
 				const stateZip = segments[segments.length - 1].trim().split(/\s+/);
 				parts = {
@@ -256,14 +282,15 @@ function ResearchAgentInner() {
 					zip: stateZip[1] ?? "",
 				};
 				setAddrParts(parts);
+			} else {
+				setGeocodeError("Please enter a valid address — e.g. 9813 Pierce Dr, McKinney, TX 75072");
+				return;
 			}
 		}
 
-		if (!parts) {
-			setCadError("Could not parse address — use format: 123 Main St, City, ST 12345");
-			return;
-		}
 
+		// Step 2: Proceed to CAD lookup with geocoded components.
+		setStep(STEPS.CAD_LOADER);
 		try {
 			const params = new URLSearchParams({
 				address: parts.address,
@@ -353,12 +380,19 @@ function ResearchAgentInner() {
 							<Button
 								type="button"
 								onClick={handleResearch}
-								className="h-10 px-6 bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white shrink-0"
+								disabled={geocodeValidating}
+								className="h-10 px-6 bg-[#6C70BA] hover:bg-[#6C70BA]/90 text-white shrink-0 disabled:opacity-60"
 							>
-								Research
+								{geocodeValidating ? "Validating…" : "Research"}
 								<Sparkles className="w-4 h-4 ml-2" />
 							</Button>
 						</div>
+						{geocodeError && (
+							<span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800 mt-1">
+								<CircleX className="w-3.5 h-3.5 shrink-0" />
+								{geocodeError}
+							</span>
+						)}
 					</>
 				)}
 

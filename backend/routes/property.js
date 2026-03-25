@@ -86,6 +86,63 @@ router.get("/cad", async (req, res) => {
 });
 
 /**
+ * GET /api/property/geocode?address=9808+Coolidge+Dr,+McKinney,+TX+75070
+ * Validates an address via Google Geocoding API.
+ * Returns parsed components: address, city, state, zip, formattedAddress.
+ */
+router.get("/geocode", async (req, res) => {
+	const { address } = req.query;
+	if (!address) {
+		return res.status(400).json({ error: "address is required" });
+	}
+
+	const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
+	if (!mapsKey) {
+		return res.status(500).json({ error: "GOOGLE_MAPS_API_KEY not configured" });
+	}
+
+	try {
+		const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${mapsKey}`;
+		const response = await fetch(url);
+		const json = await response.json();
+
+		if (json.status === "ZERO_RESULTS") {
+			return res.status(404).json({ error: "Address not found — please check and try again.", googleStatus: json.status });
+		}
+		if (json.status !== "OK") {
+			// REQUEST_DENIED, OVER_QUERY_LIMIT, etc. — return 502 so the frontend falls back.
+			return res.status(502).json({ error: `Geocoding unavailable (${json.status})`, googleStatus: json.status });
+		}
+
+		const result = json.results[0];
+		const components = result.address_components;
+
+		const get = (type, nameType = "long_name") =>
+			components.find(c => c.types.includes(type))?.[nameType] ?? "";
+
+		const streetNumber = get("street_number");
+		const route = get("route");
+		const city = get("locality") || get("sublocality") || get("administrative_area_level_2");
+		const state = get("administrative_area_level_1", "short_name");
+		const zip = get("postal_code");
+
+		if (!streetNumber || !route || !city || !state) {
+			return res.status(422).json({ error: "Could not parse a complete US address from that input." });
+		}
+
+		return res.json({
+			address: `${streetNumber} ${route}`,
+			city,
+			state,
+			zip,
+			formattedAddress: result.formatted_address,
+		});
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+});
+
+/**
  * GET /api/property/maps?address=9808+Coolidge+Dr,+McKinney,+TX+75070
  * Fetches satellite + street view images and runs Gemini vision analysis.
  * Returns roof style, pool visible, solar panels visible.
