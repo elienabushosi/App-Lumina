@@ -9,19 +9,27 @@ router.use(requireAuth);
 
 // GET /api/calls
 // List recent call_recordings for debugging UI.
+// ?mine=1  — filter to calls handled by the requesting user
 router.get("/", async (req, res) => {
 	try {
 		const db = getSupabase();
 		const limit = Number.parseInt(req.query.limit, 10) || 50;
+		const mine = req.query.mine === "1";
 
-		const { data, error } = await db
+		let query = db
 			.from("call_recordings")
 			.select(
-				"id, id_organization, ringcentral_call_id, from_number, to_number, from_name, to_name, start_time, duration_sec, status, lead_status"
+				"id, id_organization, ringcentral_call_id, from_number, to_number, from_name, to_name, start_time, duration_sec, status, lead_status, handled_by_user_id"
 			)
 			.eq("id_organization", req.user.IdOrganization)
 			.order("start_time", { ascending: false, nullsFirst: false })
 			.limit(limit);
+
+		if (mine) {
+			query = query.eq("handled_by_user_id", req.user.IdUser);
+		}
+
+		const { data, error } = await query;
 
 		if (error) {
 			console.error("[Calls] list error:", error.message);

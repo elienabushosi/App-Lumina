@@ -16,7 +16,7 @@ export async function getUserFromToken(token) {
 			IdOrganization: "default",
 			Email: "dev@example.com",
 			Name: "Dev User",
-			Role: "admin",
+			Role: "Owner",
 		};
 	}
 

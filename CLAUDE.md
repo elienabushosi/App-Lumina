@@ -577,7 +577,7 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
 - **One session file per agentId** — never share Salesforce sessions
 - **Multi-tenant from day one** — all data scoped to `id_organization`. Every new table must also include `created_by` (IdUser) for attribution.
 - **Auth middleware before new routes** — `requireAuth` middleware must be wired before adding any new API route that reads or writes user/org data.
-- **Do not fix the RC poller "default" yet** — fixing existing data is a coordinated migration; do it as a focused pass, not mixed with feature work.
+- **RC poller multi-tenancy** — `STATE_KEY = "default"` is being replaced with per-org pollers (Task #10). New pollers are closures over `orgId`; existing `"default"` row in `ringcentral_connections` is left as-is (data continuity).
 - **No Stripe yet** — per-seat billing is the end state but deferred until auth is hardened.
 - **Realtor.com for interior images** — not Zillow. Zillow was considered and
   dropped. Realtor.com is the data source for interior photo analysis.
@@ -590,17 +590,20 @@ Will be replaced with real Playwright + Gemini automation. The UI should show:
 
 ### Current State (2026-03-25, updated)
 
-The app uses `NEXT_PUBLIC_BYPASS_AUTH=1` for dev — the workspace layout sets `auth_token = "dev-bypass-token"` in localStorage, and `getUserFromToken` short-circuits to return a hardcoded dev user (`IdUser: "dev-user-id"`, `IdOrganization: "dev-org-id"`). No DB lookup happens. All dev data in Supabase is stored under `"dev-org-id"`.
+The app uses `NEXT_PUBLIC_BYPASS_AUTH=1` for dev — the workspace layout sets `auth_token = "dev-bypass-token"` in localStorage, and `getUserFromToken` short-circuits to return a hardcoded dev user (`IdUser: "dev-user-id"`, `IdOrganization: "default"`). No DB lookup happens. All dev data in Supabase is stored under `"default"` so dev users see real RC call data.
 
 **What is built and working:**
 - `requireAuth` middleware (`backend/middleware/auth.js`) — wired to `/api/calls`, `/api/proposals`, `/api/property/cad|maps|realtor`, `/api/research-reports`
 - `research_reports` table in Supabase — rows saved progressively (CAD → POST, maps → PATCH, realtor → PATCH with `status: research_complete`). Includes `id_organization`, `created_by`, `lead_phone`, `lead_email`.
 - `/agency-zoom-leads/[id]` loads research report from DB on page load. Shows "Refresh Research" if report exists.
 - Dev bypass tested end-to-end — all steps return 200/201, rows confirmed in Supabase.
+- Real signup + login confirmed working. `organizations`, `users`, `joincodes` tables migrated (migration 008).
+- Forgot password via Resend confirmed working. Uses `lumina@maderedi.com` (verified domain). Migration 009 adds `password_reset_codes` table.
+- RC token expiration fixed: singleton platform in poller, `refreshSuccess`/`refreshError` events, `refresh_token_expire_time` persisted (migration 010).
+- Calls pages converted to client components — auth token sent correctly, calls visible.
 
 **What is NOT wired yet:**
-- `organizations`, `users`, `joincodes` tables — **never migrated**. The signup/login code in `auth.js` references them but they don't exist in Supabase. Bypass auth is the only working auth path.
-- RingCentral poller and AgencyZoom routes hardcode `id_organization: "default"`. **Do not fix the poller yet — it is a coordinated migration.**
+- RC poller and AgencyZoom routes still hardcode `id_organization: "default"` — being fixed in Tasks #10 + #11.
 - No Stripe wiring yet. End state: per-seat billing where each enabled user in an org = 1 seat on the org's subscription.
 
 ### Ownership Model
@@ -636,24 +639,49 @@ Every new table must include from day one:
 
 This applies to `research_reports` and `proposals`. Do not add new tables without these columns.
 
-### RingCentral + AgencyZoom Auth Model (Deferred)
+### RingCentral Multi-Tenancy (Tasks #10 + #11 — in progress)
 
-RC and AZ use a two-level model that is more complex than a simple org swap:
-- **Org level:** Admin grants Lumina access once — one RC/AZ OAuth connection per org.
-- **User level:** Calls are attributed to the individual agent who handled them. AZ actions (create lead, update record) are taken as the authenticated Lumina user, not "the org".
+RC uses a two-level model:
+- **Org level (Task #10):** One RC OAuth connection per Lumina org. Admin connects their RC account once from Settings. The OAuth `state` param carries the org's `IdOrganization`. Tokens stored in `ringcentral_connections` keyed by `id_organization`. Poller runs one instance per connected org.
+- **User level (Task #11):** Map RC extensions to Lumina users so each call is tagged with the agent who handled it. All org members see all calls, but each user's calls are identifiable. RC extensions fetched via `/restapi/v1.0/account/~/extension`, stored in `rc_user_extensions` table. Admin maps extensions to users in Settings.
 
-This requires knowing which RC agent maps to which Lumina user, and threading per-user identity into AZ actions. **Do not implement until requireAuth + research_reports are fully wired.** Tackle as a focused pass with a real agent (Alex/Jake) available to test against.
+**Task #10 implementation plan:**
+1. `requireAuth` on `/api/ringcentral/status` and `/api/ringcentral/auth` — use `req.user.IdOrganization` as state key
+2. Settings page sends auth token when checking RC status + initiating OAuth
+3. `/api/ringcentral/callback` reads `state` as `IdOrganization` (already does this, just need to wire the auth)
+4. Poller: `startCallLogPoller()` → `startAllOrgsPollers()` — queries all rows in `ringcentral_connections`, starts one poller per org
+5. Each poller instance is a closure over its `orgId` — inserts calls with `id_organization: orgId`
+6. `resetAndRestartPoller(orgId)` — stops/restarts just that org's poller after OAuth reconnect
+
+**Task #11 implementation plan:**
+1. Migration: `rc_user_extensions` table — `(id_organization, id_user, rc_extension_id, rc_extension_number, rc_display_name, created_at)`
+2. New route `GET /api/ringcentral/extensions` — fetches live extensions from RC API for the org, returns list with any existing mapping
+3. New route `POST /api/ringcentral/extensions/map` — saves a mapping (extension_id → user_id)
+4. Settings page UI: "Map RC Extensions" section (visible to Owner/Admin) — lists extensions, dropdown to assign each to a Lumina user
+5. When inserting a call into `call_recordings`, look up the answering extension in `rc_user_extensions`, store `handled_by_user_id`
+6. Calls list: add "My calls" filter tab (filters by `handled_by_user_id = req.user.IdUser`)
+7. Call detail: shows "Handled by: [Name]" field
+
+**New column on `call_recordings`:** `handled_by_user_id TEXT` — nullable. Migration 011.
+
+### AgencyZoom Auth Model (Task #9 — deferred)
+
+AZ actions (create lead, update record) will be taken as the authenticated Lumina user. Deferred until RC tasks complete — requires per-user AZ credentials or OAuth.
 
 ### Build Order for Auth Hardening
 
 1. ✅ `requireAuth` middleware — `backend/middleware/auth.js`
 2. ✅ Wire middleware to `/api/calls`, `/api/proposals`, `/api/property/cad|maps|realtor`, `/api/research-reports`
 3. ✅ `research_reports` migration + backend routes + frontend wired (localStorage replaced)
-4. ✅ Dev bypass token (`dev-bypass-token`) — layout sets it, `getUserFromToken` recognises it in non-production
-5. ✅ **Write `organizations`, `users`, `joincodes` migrations** — `supabase/migrations/008_auth_tables.sql` run in Supabase Dashboard
-6. ✅ **Test real signup + login end-to-end** — both confirmed working. Signup creates org + user rows. Login returns custom token. `auth.js` uses `supabaseAdmin` for all table ops, `supabaseAuth` (anon client) for `signInWithPassword` only.
-7. **RC + AZ per-user auth model** — deferred until steps 5–6 complete
-8. **Stripe wiring** — deferred; per-seat subscription quantity updated when users join/leave org
+4. ✅ Dev bypass token (`dev-bypass-token`) — layout sets it, `getUserFromToken` recognises it in non-production. Bypass org is `"default"` so dev users see RC call data.
+5. ✅ **`organizations`, `users`, `joincodes` migrations** — `supabase/migrations/008_auth_tables.sql` run in Supabase Dashboard
+6. ✅ **Real signup + login confirmed working.** `auth.js` uses `supabaseAdmin` for all table ops, `supabaseAuth` (anon client) for `signInWithPassword` only.
+7. ✅ **Forgot password via Resend** — `lumina@maderedi.com` (verified `maderedi.com` domain). Migration 009 (`password_reset_codes`).
+8. ✅ **RC token expiration fixed** — singleton poller platform, `refreshSuccess`/`refreshError` events, migration 010 (`refresh_token_expire_time` column).
+9. ◻ **RC multi-tenant OAuth per org (Task #10)** — fix `STATE_KEY = "default"` hardcode, one poller per org
+10. ◻ **RC extension → Lumina user mapping (Task #11)** — `rc_user_extensions` table, Settings UI, `handled_by_user_id` on calls
+11. ◻ **AZ multi-user auth model (Task #9)** — deferred until RC tasks complete
+12. ◻ **Stripe wiring** — per-seat billing, deferred
 
 ---
 

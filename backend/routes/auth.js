@@ -1464,4 +1464,21 @@ router.post("/password/reset-with-code", async (req, res) => {
 	}
 });
 
+// List all users in the caller's org (for extension mapping dropdowns).
+router.get("/org-users", async (req, res) => {
+	const token = req.headers.authorization?.replace("Bearer ", "");
+	const user = await getUserFromToken(token);
+	if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+	const { data, error } = await supabase
+		.from("users")
+		.select("IdUser, Name, Email")
+		.eq("IdOrganization", user.IdOrganization)
+		.eq("Enabled", true)
+		.order("Name");
+
+	if (error) return res.status(500).json({ error: error.message });
+	res.json({ users: data ?? [] });
+});
+
 export default router;

@@ -118,6 +118,24 @@ export async function setRingCentralTokens(key, data) {
 }
 
 /**
+ * Returns all id_organization values that have an active RC access_token.
+ * Used at startup to launch per-org pollers.
+ * @returns {Promise<string[]>}
+ */
+export async function getAllConnectedOrgs() {
+	const db = getSupabase();
+	const { data, error } = await db
+		.from("ringcentral_connections")
+		.select("id_organization")
+		.not("access_token", "is", null);
+	if (error) {
+		console.error("[RingCentral] getAllConnectedOrgs error:", error.message);
+		return [];
+	}
+	return (data ?? []).map((r) => r.id_organization);
+}
+
+/**
  * Update only subscription_id for a key (e.g. after creating webhook subscription).
  * @param {string} key
  * @param {string} subscriptionId

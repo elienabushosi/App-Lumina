@@ -215,9 +215,12 @@ export default function WorkspaceLayout({
 		let cancelled = false;
 		async function loadStatuses() {
 			try {
+				const token = getAuthToken();
+				const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 				const [ringRes, agencyRes] = await Promise.all([
 					fetch(`${config.apiUrl}/api/ringcentral/status`, {
 						cache: "no-store",
+						headers: authHeaders,
 					}),
 					fetch(`${config.apiUrl}/api/agencyzoom/status`, {
 						cache: "no-store",

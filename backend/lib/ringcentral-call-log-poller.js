@@ -1,30 +1,29 @@
 /**
- * Polls RingCentral call log every 30s. Logs ended calls; for calls with recordings,
- * inserts into call_recordings and kicks off Deepgram transcription.
+ * Polls RingCentral call log every 30s for each connected org.
+ * Multi-tenant: one poller instance per org, keyed by id_organization.
  *
- * Token management: one platform instance is created at startup and kept alive.
- * The RC SDK handles access-token refresh automatically. We listen for the
- * refreshSuccess event to persist rotated tokens back to DB. If the refresh token
- * itself expires (7-day RC limit), we stop the poller and flag for reconnect.
+ * Token management: one platform instance per org, created at startup and kept
+ * alive. The RC SDK handles access-token refresh automatically. refreshSuccess
+ * persists rotated tokens to DB. refreshError stops that org's poller and
+ * flags it for reconnect.
  */
 import { getRingCentralSDK } from "./ringcentral.js";
 import {
 	getRingCentralTokens,
 	setRingCentralTokens,
+	getAllConnectedOrgs,
 } from "./ringcentral-token-store.js";
 import { getSupabase } from "./supabase.js";
 import { processRecording } from "./recording-processor.js";
 
-export const STATE_KEY = "default";
 const POLL_INTERVAL_MS = 30 * 1000;
 const DATE_FROM_MINUTES = 30;
 
-const processedCallIds = new Set();
-let pollerStopped = false;
-let intervalId = null;
-
-// Singleton platform instance — created once, kept alive across polls.
-let platform = null;
+/**
+ * Per-org poller state.
+ * @type {Map<string, { platform: any, processedCallIds: Set, pollerStopped: boolean, intervalId: any }>}
+ */
+const orgPollers = new Map();
 
 function dateFrom() {
 	const d = new Date(Date.now() - DATE_FROM_MINUTES * 60 * 1000);
@@ -51,15 +50,13 @@ function formatEstTime(isoString) {
 }
 
 /**
- * Creates the singleton platform instance, restores stored tokens, and wires
- * up refreshSuccess / refreshError listeners.
- * Returns the platform, or null if SDK/tokens are not available.
+ * Creates and initialises the platform for one org. Returns null if no tokens.
  */
-async function initPlatform() {
+async function initPlatform(orgId) {
 	const sdk = getRingCentralSDK();
 	if (!sdk) return null;
 
-	const tokens = await getRingCentralTokens(STATE_KEY);
+	const tokens = await getRingCentralTokens(orgId);
 	if (!tokens?.access_token) return null;
 
 	const p = sdk.platform();
@@ -71,28 +68,27 @@ async function initPlatform() {
 		refresh_token_expire_time: tokens.refresh_token_expire_time ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
 	});
 
-	// SDK auto-refreshes the access token; persist rotated tokens to DB.
+	// Persist rotated tokens on each successful refresh.
 	p.on(p.events.refreshSuccess, async () => {
 		try {
 			const data = await p.auth().data();
-			await setRingCentralTokens(STATE_KEY, {
+			await setRingCentralTokens(orgId, {
 				access_token: data.access_token,
 				refresh_token: data.refresh_token,
 				expire_time: data.expire_time,
 				refresh_token_expire_time: data.refresh_token_expire_time,
 			});
-			console.log("[CallLog] Persisted refreshed RC tokens");
+			console.log(`[CallLog:${orgId}] Persisted refreshed RC tokens`);
 		} catch (e) {
-			console.error("[CallLog] Failed to persist refreshed tokens:", e.message);
+			console.error(`[CallLog:${orgId}] Failed to persist refreshed tokens:`, e.message);
 		}
 	});
 
-	// Refresh token expired (7-day RC limit) — stop poller, require reconnect.
+	// Refresh token expired (7-day RC limit) — stop this org's poller.
 	p.on(p.events.refreshError, () => {
-		console.error(
-			"🔴 [CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
-		);
-		pollerStopped = true;
+		console.error(`🔴 [CallLog:${orgId}] Refresh token expired. Reconnect RingCentral.`);
+		const state = orgPollers.get(orgId);
+		if (state) state.pollerStopped = true;
 	});
 
 	return p;
@@ -173,8 +169,7 @@ function findAnsweringExtensionId(record) {
 	return null;
 }
 
-async function enrichToPartyName(record, baseToName) {
-	/** In-memory for one poll — avoids duplicate GET /extension/{id} calls. */
+async function enrichToPartyName(platform, record, baseToName) {
 	const extensionNameCache = new Map();
 
 	async function getExtensionDisplayName(extensionId) {
@@ -230,8 +225,32 @@ async function enrichToPartyName(record, baseToName) {
 	return null;
 }
 
-async function poll() {
-	if (pollerStopped) return;
+/**
+ * Looks up the Lumina user ID mapped to an RC extension for this org.
+ */
+async function resolveHandledByUserId(orgId, extensionId) {
+	if (!extensionId) return null;
+	try {
+		const db = getSupabase();
+		const { data } = await db
+			.from("rc_user_extensions")
+			.select("id_user")
+			.eq("id_organization", orgId)
+			.eq("rc_extension_id", String(extensionId))
+			.maybeSingle();
+		return data?.id_user ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Runs one poll cycle for an org.
+ */
+async function poll(orgId) {
+	const state = orgPollers.get(orgId);
+	if (!state || state.pollerStopped) return;
+	const { platform, processedCallIds } = state;
 	if (!platform) return;
 
 	try {
@@ -268,7 +287,7 @@ async function poll() {
 					.in("ringcentral_call_id", recordingCallIds);
 				if (rows?.length) existingRecordingIds = new Set(rows.map((r) => r.ringcentral_call_id));
 			} catch (e) {
-				console.error("[CallLog] DB check error:", e.message);
+				console.error(`[CallLog:${orgId}] DB check error:`, e.message);
 			}
 		}
 
@@ -288,7 +307,7 @@ async function poll() {
 			const fromName = pickPartyName(record.from);
 			let toName = pickPartyName(record.to);
 			if (hasRecording) {
-				toName = await enrichToPartyName(record, toName);
+				toName = await enrichToPartyName(platform, record, toName);
 			}
 			const startTime = record.startTime ?? "—";
 			const duration = record.duration ?? 0;
@@ -298,7 +317,7 @@ async function poll() {
 			const fromNumber = from !== "—" ? from : null;
 			const toNumber = to !== "—" ? to : null;
 
-			console.log("[CallLog] Ended call:", {
+			console.log(`[CallLog:${orgId}] Ended call:`, {
 				id,
 				direction,
 				from,
@@ -315,7 +334,7 @@ async function poll() {
 				try {
 					if (!fromName && !toName && !loggedMissingNames) {
 						loggedMissingNames = true;
-						console.log("[CallLog] Missing from/to names; RingCentral party fields:", {
+						console.log(`[CallLog:${orgId}] Missing from/to names; RC party fields:`, {
 							fromKeys: Object.keys(record.from ?? {}),
 							toKeys: Object.keys(record.to ?? {}),
 							fromSample: record.from ?? null,
@@ -324,11 +343,15 @@ async function poll() {
 						});
 					}
 
+					// Determine which extension handled the call (for user attribution).
+					const answeringExtId = findAnsweringExtensionId(record);
+					const handledByUserId = await resolveHandledByUserId(orgId, answeringExtId);
+
 					const db = getSupabase();
 					const { data: inserted, error } = await db
 						.from("call_recordings")
 						.insert({
-							id_organization: STATE_KEY,
+							id_organization: orgId,
 							ringcentral_call_id: id,
 							recording_content_uri: recordingContentUri,
 							from_number: fromNumber,
@@ -338,6 +361,7 @@ async function poll() {
 							start_time: record.startTime || null,
 							duration_sec: duration || null,
 							status: "pending_transcription",
+							handled_by_user_id: handledByUserId,
 						})
 						.select("id")
 						.single();
@@ -345,10 +369,10 @@ async function poll() {
 						existingRecordingIds.add(id);
 						setImmediate(() => processRecording(inserted.id));
 					} else if (error?.code !== "23505") {
-						console.error("[CallLog] Insert call_recordings error:", error?.message);
+						console.error(`[CallLog:${orgId}] Insert call_recordings error:`, error?.message);
 					}
 				} catch (e) {
-					console.error("[CallLog] Insert recording error:", e.message);
+					console.error(`[CallLog:${orgId}] Insert recording error:`, e.message);
 				}
 			} else if (hasRecording && existingRecordingIds.has(id)) {
 				try {
@@ -363,7 +387,7 @@ async function poll() {
 						})
 						.eq("ringcentral_call_id", id);
 				} catch (e) {
-					console.error("[CallLog] Backfill names error:", e.message);
+					console.error(`[CallLog:${orgId}] Backfill names error:`, e.message);
 				}
 			}
 		}
@@ -381,53 +405,92 @@ async function poll() {
 
 		const mostRecentEst = mostRecent ? formatEstTime(mostRecent) : null;
 		console.log(
-			`🕒 [CallLog] Poll run - ${allRecords.length} calls in the logs from last ${DATE_FROM_MINUTES}mins, most recent call was at ${mostRecentEst ?? "—"}`
+			`🕒 [CallLog:${orgId}] Poll run - ${allRecords.length} calls in last ${DATE_FROM_MINUTES}mins, most recent: ${mostRecentEst ?? "—"}`
 		);
 	} catch (e) {
 		const msg = e?.message || "";
-		// refreshError event handles this, but catch it here too as a safety net.
 		if (/refresh token has expired/i.test(msg)) {
-			if (!pollerStopped) {
-				console.error(
-					"🔴 [CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
-				);
-				pollerStopped = true;
+			const state = orgPollers.get(orgId);
+			if (state && !state.pollerStopped) {
+				console.error(`🔴 [CallLog:${orgId}] Refresh token expired. Reconnect RingCentral.`);
+				state.pollerStopped = true;
 			}
 			return;
 		}
-		console.error("[CallLog poll] API error:", msg);
-	}
-}
-
-export async function startCallLogPoller() {
-	if (intervalId) return;
-
-	platform = await initPlatform();
-	if (!platform) {
-		console.log("📞 [CallLog] No RC tokens found — poller not started.");
-		return;
-	}
-
-	console.log("📞 [CallLog] Poller started (every 30s). Will log new ended calls.");
-	poll();
-	intervalId = setInterval(poll, POLL_INTERVAL_MS);
-}
-
-export function stopCallLogPoller() {
-	if (intervalId) {
-		clearInterval(intervalId);
-		intervalId = null;
-		console.log("📞 [CallLog] Poller stopped.");
+		console.error(`[CallLog:${orgId}] API error:`, msg);
 	}
 }
 
 /**
- * Call this after a successful RC OAuth reconnect to restart the poller
- * with fresh tokens.
+ * Start a poller for one org. No-op if already running.
  */
-export async function resetAndRestartPoller() {
-	stopCallLogPoller();
-	pollerStopped = false;
-	platform = null;
-	await startCallLogPoller();
+export async function startOrgPoller(orgId) {
+	const existing = orgPollers.get(orgId);
+	if (existing?.intervalId) return; // already running
+
+	const platform = await initPlatform(orgId);
+	if (!platform) {
+		console.log(`📞 [CallLog:${orgId}] No RC tokens — poller not started.`);
+		return;
+	}
+
+	const state = {
+		platform,
+		processedCallIds: new Set(),
+		pollerStopped: false,
+		intervalId: null,
+	};
+	orgPollers.set(orgId, state);
+
+	console.log(`📞 [CallLog:${orgId}] Poller started (every 30s).`);
+	poll(orgId);
+	state.intervalId = setInterval(() => poll(orgId), POLL_INTERVAL_MS);
 }
+
+/**
+ * Stop the poller for one org.
+ */
+export function stopOrgPoller(orgId) {
+	const state = orgPollers.get(orgId);
+	if (state?.intervalId) {
+		clearInterval(state.intervalId);
+		state.intervalId = null;
+		console.log(`📞 [CallLog:${orgId}] Poller stopped.`);
+	}
+}
+
+/**
+ * Stop then restart the poller for one org (call after OAuth reconnect).
+ */
+export async function resetAndRestartPoller(orgId) {
+	stopOrgPoller(orgId);
+	orgPollers.delete(orgId);
+	await startOrgPoller(orgId);
+}
+
+/**
+ * Start pollers for all orgs that have tokens in ringcentral_connections.
+ * Called once at server startup.
+ */
+export async function startCallLogPoller() {
+	const orgIds = await getAllConnectedOrgs();
+	if (orgIds.length === 0) {
+		console.log("📞 [CallLog] No RC connections found — no pollers started.");
+		return;
+	}
+	for (const orgId of orgIds) {
+		await startOrgPoller(orgId);
+	}
+}
+
+/**
+ * Stop all running pollers (used for graceful shutdown).
+ */
+export function stopCallLogPoller() {
+	for (const [orgId] of orgPollers) {
+		stopOrgPoller(orgId);
+	}
+}
+
+// Keep old STATE_KEY export for any callers that still reference it.
+export const STATE_KEY = "default";

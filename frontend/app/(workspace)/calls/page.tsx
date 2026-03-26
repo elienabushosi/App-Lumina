@@ -40,17 +40,23 @@ type CallRow = {
 	duration_sec: number | null;
 	status: string;
 	lead_status: string | null;
+	handled_by_user_id: string | null;
 };
 
 export default function CallsPage() {
 	const [calls, setCalls] = useState<CallRow[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [filter, setFilter] = useState<"all" | "mine">("all");
 
 	useEffect(() => {
 		const fetchCalls = async () => {
+			setLoading(true);
 			try {
 				const token = getAuthToken();
-				const res = await fetch(`${config.apiUrl}/api/calls`, {
+				const url = filter === "mine"
+					? `${config.apiUrl}/api/calls?mine=1`
+					: `${config.apiUrl}/api/calls`;
+				const res = await fetch(url, {
 					headers: token ? { Authorization: `Bearer ${token}` } : {},
 					cache: "no-store",
 				});
@@ -68,19 +74,35 @@ export default function CallsPage() {
 		};
 
 		fetchCalls();
-	}, []);
+	}, [filter]);
 
 	return (
 		<div className="p-8">
 			<div className="max-w-5xl mx-auto space-y-4">
-				<div>
-					<h1 className="text-2xl font-semibold text-[#37322F]">
-						Call Listener
-					</h1>
-					<p className="text-sm text-[#605A57] mt-1">
-						Recent RingCentral calls processed by Lumina, with transcription and
-						lead extraction status.
-					</p>
+				<div className="flex items-start justify-between gap-4">
+					<div>
+						<h1 className="text-2xl font-semibold text-[#37322F]">
+							Call Listener
+						</h1>
+						<p className="text-sm text-[#605A57] mt-1">
+							Recent RingCentral calls processed by Lumina, with transcription and
+							lead extraction status.
+						</p>
+					</div>
+					<div className="flex items-center gap-1 bg-[#F9F8F6] border border-[#E0DEDB] rounded-md p-0.5 shrink-0">
+						<button
+							className={`text-xs px-3 py-1.5 rounded font-medium transition-colors ${filter === "all" ? "bg-white text-[#37322F] shadow-sm" : "text-[#605A57] hover:text-[#37322F]"}`}
+							onClick={() => setFilter("all")}
+						>
+							All calls
+						</button>
+						<button
+							className={`text-xs px-3 py-1.5 rounded font-medium transition-colors ${filter === "mine" ? "bg-white text-[#37322F] shadow-sm" : "text-[#605A57] hover:text-[#37322F]"}`}
+							onClick={() => setFilter("mine")}
+						>
+							My calls
+						</button>
+					</div>
 				</div>
 				<div className="rounded-lg border border-[#E0DEDB] bg-white shadow-sm">
 					<Table>

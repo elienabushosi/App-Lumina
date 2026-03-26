@@ -1,10 +1,13 @@
 /**
- * RingCentral OAuth + webhook (no DB yet — tokens stored in file keyed by "default").
- * GET  /api/ringcentral/auth     -> redirect to RingCentral authorize
- * GET  /api/ringcentral/callback -> exchange code, store tokens, create subscription, redirect to frontend
- * GET  /api/ringcentral/status   -> { connected: boolean } for UI
- * GET  /api/ringcentral/webhook  -> validation (return Validation-Token header)
- * POST /api/ringcentral/webhook  -> call-ended events (respond 200, process async)
+ * RingCentral OAuth + extensions + webhook.
+ *
+ * GET  /api/ringcentral/status         -> { connected: boolean }  (requires auth)
+ * GET  /api/ringcentral/auth           -> redirect to RC authorize  (requires auth)
+ * GET  /api/ringcentral/callback       -> exchange code, store tokens, start poller
+ * GET  /api/ringcentral/extensions     -> list RC extensions + saved mappings  (requires auth)
+ * POST /api/ringcentral/extensions/map -> save extension → user mapping  (requires auth)
+ * GET  /api/ringcentral/webhook        -> validation (return Validation-Token header)
+ * POST /api/ringcentral/webhook        -> call-ended events (respond 200, process async)
  */
 import express from "express";
 import { getRingCentralSDK } from "../lib/ringcentral.js";
@@ -13,23 +16,27 @@ import {
 	setRingCentralTokens,
 	setRingCentralSubscriptionId,
 } from "../lib/ringcentral-token-store.js";
-import { resetAndRestartPoller } from "../lib/ringcentral-call-log-poller.js";
+import { resetAndRestartPoller, startOrgPoller } from "../lib/ringcentral-call-log-poller.js";
+import { requireAuth } from "../middleware/auth.js";
+import { getSupabase } from "../lib/supabase.js";
 
 const router = express.Router();
-const STATE_KEY = "default";
+
 // statusCode=Disconnected fires when a call ends; CallControl permission required in app
 const TELEPHONY_SESSIONS_FILTER = "/restapi/v1.0/account/~/telephony/sessions?statusCode=Disconnected";
 
-router.get("/status", async (req, res) => {
-	const tokens = await getRingCentralTokens(STATE_KEY);
+// ---------------------------------------------------------------------------
+// Status — uses logged-in user's org
+// ---------------------------------------------------------------------------
+router.get("/status", requireAuth, async (req, res) => {
+	const orgId = req.user.IdOrganization;
+	const tokens = await getRingCentralTokens(orgId);
 	if (!tokens || !tokens.access_token) {
 		return res.json({ connected: false });
 	}
-	// access_token expires quickly; if it's expired then our next RingCentral call
-	// will require a refresh. If refresh fails you'll see "Refresh token has expired".
 	const nowSec = Math.floor(Date.now() / 1000);
 	const expireTimeSec = typeof tokens.expire_time === "number" ? tokens.expire_time : null;
-	// Some RingCentral SDKs provide expire_time in milliseconds; normalize if needed.
+	// RC SDK stores expire_time in milliseconds; normalise.
 	const normalizedExpireSec =
 		typeof expireTimeSec === "number" && expireTimeSec > 1_000_000_000_0
 			? Math.floor(expireTimeSec / 1000)
@@ -40,19 +47,34 @@ router.get("/status", async (req, res) => {
 
 	const payload = { connected };
 	if (process.env.NODE_ENV === "development") {
-		// Help us verify units without reading the DB directly.
-		payload._debug = {
-			nowSec,
-			rawExpireTime: tokens.expire_time,
-			expireTimeSec,
-			normalizedExpireSec,
-		};
+		payload._debug = { nowSec, rawExpireTime: tokens.expire_time, normalizedExpireSec };
 	}
-
 	res.json(payload);
 });
 
-router.get("/auth", (req, res) => {
+// ---------------------------------------------------------------------------
+// OAuth initiation — two variants:
+//   GET /auth-url  (requires auth header) → returns JSON { url } for frontend fetch+redirect
+//   GET /auth      (legacy, requires auth header) → 302 redirect to RC
+// ---------------------------------------------------------------------------
+router.get("/auth-url", requireAuth, (req, res) => {
+	const sdk = getRingCentralSDK();
+	const redirectUri = process.env.RINGCENTRAL_REDIRECT_URI;
+
+	if (!sdk || !redirectUri) {
+		return res.status(500).json({
+			error: "RingCentral not configured",
+			detail: !sdk ? "Missing RINGCENTRAL_CLIENT_ID/SECRET" : "Missing RINGCENTRAL_REDIRECT_URI",
+		});
+	}
+
+	const orgId = req.user.IdOrganization;
+	const platform = sdk.platform();
+	const url = platform.loginUrl({ redirectUri, state: orgId });
+	res.json({ url });
+});
+
+router.get("/auth", requireAuth, (req, res) => {
 	const sdk = getRingCentralSDK();
 	const redirectUri = process.env.RINGCENTRAL_REDIRECT_URI;
 	const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -64,14 +86,15 @@ router.get("/auth", (req, res) => {
 		});
 	}
 
+	const orgId = req.user.IdOrganization;
 	const platform = sdk.platform();
-	const authUrl = platform.loginUrl({
-		redirectUri,
-		state: STATE_KEY,
-	});
+	const authUrl = platform.loginUrl({ redirectUri, state: orgId });
 	res.redirect(authUrl);
 });
 
+// ---------------------------------------------------------------------------
+// OAuth callback — state = orgId
+// ---------------------------------------------------------------------------
 router.get("/callback", async (req, res) => {
 	const sdk = getRingCentralSDK();
 	const redirectUri = process.env.RINGCENTRAL_REDIRECT_URI;
@@ -86,16 +109,15 @@ router.get("/callback", async (req, res) => {
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=no_code`);
 	}
 
-	console.log("[RingCentral] Callback hit, exchanging code for tokens...");
+	// state = orgId set during /auth; fall back to "default" for legacy redirects
+	const orgId = state || "default";
+	console.log(`[RingCentral] Callback for org: ${orgId}, exchanging code...`);
+
 	const platform = sdk.platform();
 	try {
-		await platform.login({
-			code,
-			redirect_uri: redirectUri,
-		});
+		await platform.login({ code, redirect_uri: redirectUri });
 		const authData = await platform.auth().data();
-		const key = state || STATE_KEY;
-		await setRingCentralTokens(key, {
+		await setRingCentralTokens(orgId, {
 			access_token: authData.access_token,
 			refresh_token: authData.refresh_token,
 			expire_time: authData.expire_time,
@@ -103,35 +125,31 @@ router.get("/callback", async (req, res) => {
 			refresh_token_expire_time: authData.refresh_token_expire_time,
 			refresh_token_expires_in: authData.refresh_token_expires_in,
 		});
-		console.log("[RingCentral] Tokens stored for key:", key);
+		console.log("[RingCentral] Tokens stored for org:", orgId);
 
-		// Restart the poller with the fresh tokens.
-		resetAndRestartPoller().catch((e) =>
-			console.error("[RingCentral] Failed to restart poller:", e.message)
+		// Restart this org's poller with fresh tokens.
+		resetAndRestartPoller(orgId).catch((e) =>
+			console.error(`[RingCentral:${orgId}] Failed to restart poller:`, e.message)
 		);
 
-		// Create webhook subscription if URL is configured (e.g. ngrok)
+		// Create webhook subscription if configured.
 		const webhookUrl = process.env.RINGCENTRAL_WEBHOOK_URL;
 		if (webhookUrl) {
 			try {
 				const subRes = await platform.post("/restapi/v1.0/subscription", {
 					eventFilters: [TELEPHONY_SESSIONS_FILTER],
-					deliveryMode: {
-						transportType: "WebHook",
-						address: webhookUrl,
-					},
-					expiresIn: 604800, // 7 days
+					deliveryMode: { transportType: "WebHook", address: webhookUrl },
+					expiresIn: 604800,
 				});
 				const subJson = await subRes.json();
 				if (subJson.id) {
-					await setRingCentralSubscriptionId(key, subJson.id);
+					await setRingCentralSubscriptionId(orgId, subJson.id);
 					console.log("[RingCentral] Webhook subscription created:", subJson.id);
 				} else {
 					console.warn("[RingCentral] Subscription response missing id:", subJson);
 				}
 			} catch (subErr) {
 				console.error("🔴 [RingCentral] Subscription create error:", subErr.message);
-				// Don't fail the callback; tokens are stored, user can retry subscription later
 			}
 		} else {
 			console.log("[RingCentral] RINGCENTRAL_WEBHOOK_URL not set; skipping subscription.");
@@ -144,10 +162,115 @@ router.get("/callback", async (req, res) => {
 	}
 });
 
-// --- Webhook: validation (GET/POST) and events (POST) ---
+// ---------------------------------------------------------------------------
+// Extensions — list RC extensions for the org + saved user mappings
+// ---------------------------------------------------------------------------
+router.get("/extensions", requireAuth, async (req, res) => {
+	const orgId = req.user.IdOrganization;
+	const tokens = await getRingCentralTokens(orgId);
+	if (!tokens?.access_token) {
+		return res.status(400).json({ error: "RingCentral not connected for this org." });
+	}
+
+	// We need a live platform instance to call the RC API.
+	const sdk = getRingCentralSDK();
+	if (!sdk) return res.status(500).json({ error: "RC SDK not configured." });
+
+	try {
+		const p = sdk.platform();
+		await p.auth().setData({
+			access_token: tokens.access_token,
+			refresh_token: tokens.refresh_token,
+			expire_time: tokens.expire_time,
+			refresh_token_expire_time: tokens.refresh_token_expire_time ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
+		});
+
+		// Fetch all extensions.
+		const resp = await p.get("/restapi/v1.0/account/~/extension", {
+			perPage: 1000,
+			page: 1,
+			type: "User",
+		});
+		const data = await resp.json();
+		const extensions = (data.records ?? []).map((ext) => ({
+			id: String(ext.id),
+			extensionNumber: ext.extensionNumber ?? null,
+			name: ext.name ?? null,
+			email: ext.contact?.email ?? null,
+			status: ext.status ?? null,
+		}));
+
+		// Load saved mappings for this org.
+		const db = getSupabase();
+		const { data: mappings } = await db
+			.from("rc_user_extensions")
+			.select("rc_extension_id, id_user")
+			.eq("id_organization", orgId);
+		const mappingByExtId = Object.fromEntries(
+			(mappings ?? []).map((m) => [m.rc_extension_id, m.id_user])
+		);
+
+		// Merge.
+		const result = extensions.map((ext) => ({
+			...ext,
+			mapped_user_id: mappingByExtId[ext.id] ?? null,
+		}));
+
+		res.json({ extensions: result });
+	} catch (e) {
+		console.error("[RingCentral] /extensions error:", e.message);
+		res.status(500).json({ error: "Failed to fetch RC extensions." });
+	}
+});
+
+// ---------------------------------------------------------------------------
+// Map extension → Lumina user
+// ---------------------------------------------------------------------------
+router.post("/extensions/map", requireAuth, async (req, res) => {
+	const orgId = req.user.IdOrganization;
+	const { rc_extension_id, rc_extension_number, rc_display_name, id_user } = req.body;
+
+	if (!rc_extension_id) {
+		return res.status(400).json({ error: "rc_extension_id is required." });
+	}
+
+	const db = getSupabase();
+
+	if (!id_user) {
+		// Remove mapping.
+		await db
+			.from("rc_user_extensions")
+			.delete()
+			.eq("id_organization", orgId)
+			.eq("rc_extension_id", rc_extension_id);
+		return res.json({ ok: true, action: "removed" });
+	}
+
+	const { error } = await db.from("rc_user_extensions").upsert(
+		{
+			id_organization: orgId,
+			id_user,
+			rc_extension_id,
+			rc_extension_number: rc_extension_number ?? null,
+			rc_display_name: rc_display_name ?? null,
+		},
+		{ onConflict: "id_organization,rc_extension_id" }
+	);
+
+	if (error) {
+		console.error("[RingCentral] /extensions/map error:", error.message);
+		return res.status(500).json({ error: "Failed to save mapping." });
+	}
+
+	res.json({ ok: true, action: "saved" });
+});
+
+// ---------------------------------------------------------------------------
+// Webhook — RC calls this; no user auth
+// ---------------------------------------------------------------------------
 function handleWebhook(req, res) {
-	// Log every request so we can see if RingCentral is hitting us
-	console.log("[RingCentral webhook] Request:", req.method, req.method === "POST" ? "(body keys: " + Object.keys(req.body || {}).join(", ") + ")" : "");
+	console.log("[RingCentral webhook] Request:", req.method,
+		req.method === "POST" ? "(body keys: " + Object.keys(req.body || {}).join(", ") + ")" : "");
 
 	const validationToken =
 		req.query.validationToken ||
@@ -159,14 +282,12 @@ function handleWebhook(req, res) {
 		return res.status(200).send();
 	}
 
-	// Event payload: respond 200 immediately, process async
 	res.status(200).send();
 
 	const body = req.body || {};
 	const uuid = body.uuid || body.subscriptionId;
 	const event = body.event;
 
-	// Telephony session event (e.g. call ended)
 	if (event && body.body) {
 		setImmediate(() => {
 			console.log("[RingCentral webhook] event:", event, "uuid:", uuid);

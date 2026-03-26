@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
 	getCurrentUser,
+	getAuthToken,
 	requestPasswordReset,
 	resetPassword,
 } from "@/lib/auth";
@@ -144,6 +145,21 @@ export default function SettingsPage() {
 		null,
 	);
 
+	type RcExtension = {
+		id: string;
+		extensionNumber: string | null;
+		name: string | null;
+		email: string | null;
+		status: string | null;
+		mapped_user_id: string | null;
+	};
+	type OrgUser = { IdUser: string; Name: string; Email: string };
+	const [rcExtensions, setRcExtensions] = useState<RcExtension[]>([]);
+	const [rcExtensionsLoading, setRcExtensionsLoading] = useState(false);
+	const [rcExtensionsError, setRcExtensionsError] = useState<string | null>(null);
+	const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
+	const [savingExtMap, setSavingExtMap] = useState<Record<string, boolean>>({});
+
 	const isOwner = currentUser?.user.Role === "Owner";
 
 	const form = useForm<PasswordResetFormValues>({
@@ -171,8 +187,10 @@ export default function SettingsPage() {
 	useEffect(() => {
 		const fetchRingCentralStatus = async () => {
 			try {
+				const token = getAuthToken();
 				const res = await fetch(
 					`${config.apiUrl}/api/ringcentral/status`,
+					{ headers: token ? { Authorization: `Bearer ${token}` } : {} },
 				);
 				const data = await res.json();
 				setRingCentralConnected(data.connected ?? false);
@@ -436,6 +454,71 @@ export default function SettingsPage() {
 			setAgencyZoomConnected(false);
 		} finally {
 			setIsConnectingAgencyZoom(false);
+		}
+	};
+
+	const handleRcConnect = async () => {
+		try {
+			const token = getAuthToken();
+			const res = await fetch(`${config.apiUrl}/api/ringcentral/auth-url`, {
+				headers: token ? { Authorization: `Bearer ${token}` } : {},
+			});
+			const data = await res.json();
+			if (data.url) window.location.href = data.url;
+		} catch {
+			setError("Failed to initiate RingCentral connection.");
+		}
+	};
+
+	const fetchRcExtensions = async () => {
+		setRcExtensionsLoading(true);
+		setRcExtensionsError(null);
+		try {
+			const token = getAuthToken();
+			const [extRes, usersRes] = await Promise.all([
+				fetch(`${config.apiUrl}/api/ringcentral/extensions`, {
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
+				}),
+				fetch(`${config.apiUrl}/api/auth/org-users`, {
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
+				}),
+			]);
+			const extData = await extRes.json();
+			if (!extRes.ok) throw new Error(extData.error || "Failed to load extensions");
+			setRcExtensions(extData.extensions ?? []);
+			if (usersRes.ok) {
+				const uData = await usersRes.json();
+				setOrgUsers(uData.users ?? []);
+			}
+		} catch (e) {
+			setRcExtensionsError(e instanceof Error ? e.message : "Failed to load extensions");
+		} finally {
+			setRcExtensionsLoading(false);
+		}
+	};
+
+	const handleMapExtension = async (ext: RcExtension, userId: string) => {
+		setSavingExtMap((prev) => ({ ...prev, [ext.id]: true }));
+		try {
+			const token = getAuthToken();
+			await fetch(`${config.apiUrl}/api/ringcentral/extensions/map`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					...(token ? { Authorization: `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify({
+					rc_extension_id: ext.id,
+					rc_extension_number: ext.extensionNumber,
+					rc_display_name: ext.name,
+					id_user: userId || null,
+				}),
+			});
+			setRcExtensions((prev) =>
+				prev.map((e) => (e.id === ext.id ? { ...e, mapped_user_id: userId || null } : e))
+			);
+		} finally {
+			setSavingExtMap((prev) => ({ ...prev, [ext.id]: false }));
 		}
 	};
 
@@ -780,9 +863,69 @@ export default function SettingsPage() {
 									Checking connection...
 								</div>
 							) : ringCentralConnected ? (
-								<div className="flex items-center gap-2 text-sm text-green-700">
-									<CheckCircle2 className="h-4 w-4" />
-									Connected
+								<div className="space-y-4">
+									<div className="flex items-center justify-between gap-3">
+										<div className="flex items-center gap-2 text-sm text-green-700">
+											<CheckCircle2 className="h-4 w-4" />
+											Connected
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											className="text-xs border-[#E0DEDB] text-[#37322F]"
+											onClick={handleRcConnect}
+										>
+											Reconnect
+										</Button>
+									</div>
+									{isOwner && (
+										<div className="space-y-3">
+											<div className="flex items-center justify-between">
+												<p className="text-sm font-medium text-[#37322F]">
+													Map Extensions to Agents
+												</p>
+												<Button
+													variant="outline"
+													size="sm"
+													className="text-xs border-[#E0DEDB] text-[#37322F]"
+													onClick={fetchRcExtensions}
+													disabled={rcExtensionsLoading}
+												>
+													{rcExtensionsLoading ? (
+														<><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Loading...</>
+													) : rcExtensions.length > 0 ? "Refresh" : "Load Extensions"}
+												</Button>
+											</div>
+											{rcExtensionsError && (
+												<p className="text-xs text-red-700">{rcExtensionsError}</p>
+											)}
+											{rcExtensions.length > 0 && (
+												<div className="border border-[#E0DEDB] rounded-md divide-y divide-[#E0DEDB]">
+													{rcExtensions.map((ext) => (
+														<div key={ext.id} className="flex items-center justify-between gap-3 p-2.5">
+															<div className="min-w-0">
+																<p className="text-sm font-medium text-[#37322F] truncate">
+																	{ext.name ?? "Unnamed"}{ext.extensionNumber ? ` (ext. ${ext.extensionNumber})` : ""}
+																</p>
+																{ext.email && <p className="text-xs text-[#605A57] truncate">{ext.email}</p>}
+															</div>
+															<select
+																className="text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F] shrink-0 disabled:opacity-50"
+																value={ext.mapped_user_id ?? ""}
+																disabled={!!savingExtMap[ext.id]}
+																onChange={(e) => handleMapExtension(ext, e.target.value)}
+															>
+																<option value="">— unassigned —</option>
+																{orgUsers.map((u) => (
+																	<option key={u.IdUser} value={u.IdUser}>{u.Name}</option>
+																))}
+															</select>
+														</div>
+													))}
+												</div>
+											)}
+										</div>
+									)}
 								</div>
 							) : (
 								<div className="flex items-center justify-between gap-3">
@@ -792,9 +935,7 @@ export default function SettingsPage() {
 									</div>
 									<Button
 										className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
-										onClick={() => {
-											window.location.href = `${config.apiUrl}/api/ringcentral/auth`;
-										}}
+										onClick={handleRcConnect}
 									>
 										Reconnect
 									</Button>
