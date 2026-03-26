@@ -603,7 +603,7 @@ The app uses `NEXT_PUBLIC_BYPASS_AUTH=1` for dev — the workspace layout sets `
 - Calls pages converted to client components — auth token sent correctly, calls visible.
 
 **What is NOT wired yet:**
-- RC poller and AgencyZoom routes still hardcode `id_organization: "default"` — being fixed in Tasks #10 + #11.
+- AgencyZoom routes still hardcode `id_organization: "default"` — being fixed in Task #9.
 - No Stripe wiring yet. End state: per-seat billing where each enabled user in an org = 1 seat on the org's subscription.
 
 ### Ownership Model
@@ -678,8 +678,8 @@ AZ actions (create lead, update record) will be taken as the authenticated Lumin
 6. ✅ **Real signup + login confirmed working.** `auth.js` uses `supabaseAdmin` for all table ops, `supabaseAuth` (anon client) for `signInWithPassword` only.
 7. ✅ **Forgot password via Resend** — `lumina@maderedi.com` (verified `maderedi.com` domain). Migration 009 (`password_reset_codes`).
 8. ✅ **RC token expiration fixed** — singleton poller platform, `refreshSuccess`/`refreshError` events, migration 010 (`refresh_token_expire_time` column).
-9. ◻ **RC multi-tenant OAuth per org (Task #10)** — fix `STATE_KEY = "default"` hardcode, one poller per org
-10. ◻ **RC extension → Lumina user mapping (Task #11)** — `rc_user_extensions` table, Settings UI, `handled_by_user_id` on calls
+9. ✅ **RC multi-tenant OAuth per org (Task #10)** — per-org pollers, `STATE_KEY = "default"` replaced, `/status` + `/auth` require auth
+10. ✅ **RC extension → Lumina user mapping (Task #11)** — `rc_user_extensions` table (migration 011), Settings UI, `handled_by_user_id` on calls, "My calls" filter
 11. ◻ **AZ multi-user auth model (Task #9)** — deferred until RC tasks complete
 12. ◻ **Stripe wiring** — per-seat billing, deferred
 
