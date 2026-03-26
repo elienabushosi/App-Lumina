@@ -156,6 +156,34 @@ const [isRequestingCode, setIsRequestingCode] = useState(false);
 	const [sfSaved, setSfSaved] = useState<{ username: string; updatedAt: string } | null>(null);
 	const [sfError, setSfError] = useState<string | null>(null);
 
+	// AgencyZoom config wizard
+	type AzCustomField = { fieldName: string; fieldLabel: string; entityType?: string };
+	type AzPipeline = { id: number | string; name: string; stages?: { id: number | string; name: string }[] };
+	type AzEmployee = { id: number | string; name?: string; firstName?: string; lastName?: string; email?: string };
+	type AzLeadSource = { id: number | string; name: string };
+	type AzLocation = { agencyNumber?: string; name?: string; locationCode?: string };
+	type AzConfig = {
+		lead_source_id: string; pipeline_id: string; stage_id: string;
+		primary_producer_id: string; primary_csr_id: string; location_code: string; country: string;
+		cf_roof_year: string; cf_roof_type: string; cf_flooring_types: string;
+		cf_bathrooms: string; cf_occupation_degree: string;
+	};
+	const EMPTY_AZ_CONFIG: AzConfig = {
+		lead_source_id: "", pipeline_id: "", stage_id: "", primary_producer_id: "",
+		primary_csr_id: "", location_code: "", country: "US",
+		cf_roof_year: "", cf_roof_type: "", cf_flooring_types: "", cf_bathrooms: "", cf_occupation_degree: "",
+	};
+	const [azConfigLoading, setAzConfigLoading] = useState(false);
+	const [azConfigError, setAzConfigError] = useState<string | null>(null);
+	const [azConfigSaving, setAzConfigSaving] = useState(false);
+	const [azConfigSaved, setAzConfigSaved] = useState(false);
+	const [azCustomFields, setAzCustomFields] = useState<AzCustomField[]>([]);
+	const [azPipelines, setAzPipelines] = useState<AzPipeline[]>([]);
+	const [azEmployees, setAzEmployees] = useState<AzEmployee[]>([]);
+	const [azLeadSources, setAzLeadSources] = useState<AzLeadSource[]>([]);
+	const [azLocations, setAzLocations] = useState<AzLocation[]>([]);
+	const [azConfig, setAzConfig] = useState<AzConfig>(EMPTY_AZ_CONFIG);
+
 	const isOwner = currentUser?.user.Role === "Owner";
 
 	const form = useForm<PasswordResetFormValues>({
@@ -196,8 +224,10 @@ const [isRequestingCode, setIsRequestingCode] = useState(false);
 		};
 		const fetchAgencyZoomStatus = async () => {
 			try {
+				const token = getAuthToken();
 				const res = await fetch(
 					`${config.apiUrl}/api/agencyzoom/status`,
+					{ headers: token ? { Authorization: `Bearer ${token}` } : {} },
 				);
 				const data = await res.json();
 				setAgencyZoomConnected(data.connected ?? false);
@@ -416,10 +446,12 @@ useEffect(() => {
 		setAgencyZoomSuccess(null);
 
 		try {
+			const azToken = getAuthToken();
 			const res = await fetch(`${config.apiUrl}/api/agencyzoom/connect`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
+					...(azToken ? { Authorization: `Bearer ${azToken}` } : {}),
 				},
 				body: JSON.stringify({
 					email: agencyZoomEmail,
@@ -557,6 +589,99 @@ useEffect(() => {
 			setSfError(e instanceof Error ? e.message : "Failed to save credentials");
 		} finally {
 			setSfSaving(false);
+		}
+	};
+
+	// Fuzzy match: given a list of AZ custom fields, find the best match for a Lumina concept
+	function fuzzyMatchField(fields: AzCustomField[], keywords: string[]): string {
+		for (const field of fields) {
+			const label = (field.fieldLabel ?? field.fieldName ?? "").toLowerCase();
+			if (keywords.some((kw) => label.includes(kw))) return field.fieldName;
+		}
+		return "";
+	}
+
+	const fetchAzConfig = async () => {
+		setAzConfigLoading(true);
+		setAzConfigError(null);
+		try {
+			const token = getAuthToken();
+			const res = await fetch(`${config.apiUrl}/api/agencyzoom/config/all`, {
+				headers: token ? { Authorization: `Bearer ${token}` } : {},
+			});
+			if (!res.ok) throw new Error("Failed to load AgencyZoom config");
+			const data = await res.json();
+
+			// Normalize custom fields — filter to entityType "lead" if present
+			const allFields: AzCustomField[] = Array.isArray(data.customFields)
+				? data.customFields
+				: (data.customFields?.data ?? []);
+			const leadFields = allFields.filter((f) => !f.entityType || f.entityType === "lead");
+			setAzCustomFields(leadFields);
+
+			const pipelines: AzPipeline[] = Array.isArray(data.pipelinesAndStages)
+				? data.pipelinesAndStages
+				: (data.pipelinesAndStages?.data ?? []);
+			setAzPipelines(pipelines);
+
+			const employees: AzEmployee[] = Array.isArray(data.employees)
+				? data.employees
+				: (data.employees?.data ?? []);
+			setAzEmployees(employees);
+
+			const leadSources: AzLeadSource[] = Array.isArray(data.leadSources)
+				? data.leadSources
+				: (data.leadSources?.data ?? []);
+			setAzLeadSources(leadSources);
+
+			const locations: AzLocation[] = Array.isArray(data.locations)
+				? data.locations
+				: (data.locations?.data ?? []);
+			setAzLocations(locations);
+
+			// Pre-populate from saved config or fuzzy auto-match
+			const saved = data.savedConfig;
+			setAzConfig({
+				lead_source_id:      saved?.lead_source_id      ?? String(leadSources[0]?.id ?? ""),
+				pipeline_id:         saved?.pipeline_id         ?? String(pipelines[0]?.id ?? ""),
+				stage_id:            saved?.stage_id            ?? String(pipelines[0]?.stages?.[0]?.id ?? ""),
+				primary_producer_id: saved?.primary_producer_id ?? String(employees[0]?.id ?? ""),
+				primary_csr_id:      saved?.primary_csr_id      ?? "",
+				location_code:       saved?.location_code       ?? (locations[0]?.agencyNumber ?? locations[0]?.locationCode ?? ""),
+				country:             saved?.country             ?? "US",
+				cf_roof_year:        saved?.cf_roof_year        ?? fuzzyMatchField(leadFields, ["roof year", "year roof", "year of roof"]),
+				cf_roof_type:        saved?.cf_roof_type        ?? fuzzyMatchField(leadFields, ["roof type", "type of roof", "roof material", "roof style"]),
+				cf_flooring_types:   saved?.cf_flooring_types   ?? fuzzyMatchField(leadFields, ["flooring", "floor type", "floor material"]),
+				cf_bathrooms:        saved?.cf_bathrooms        ?? fuzzyMatchField(leadFields, ["bathroom", "bath", "number of bath"]),
+				cf_occupation_degree: saved?.cf_occupation_degree ?? fuzzyMatchField(leadFields, ["occupation", "occupation degree"]),
+			});
+		} catch (e) {
+			setAzConfigError(e instanceof Error ? e.message : "Failed to load config");
+		} finally {
+			setAzConfigLoading(false);
+		}
+	};
+
+	const handleSaveAzConfig = async () => {
+		setAzConfigSaving(true);
+		setAzConfigError(null);
+		try {
+			const token = getAuthToken();
+			const res = await fetch(`${config.apiUrl}/api/agencyzoom/config`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					...(token ? { Authorization: `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify(azConfig),
+			});
+			if (!res.ok) throw new Error("Failed to save config");
+			setAzConfigSaved(true);
+			setTimeout(() => setAzConfigSaved(false), 3000);
+		} catch (e) {
+			setAzConfigError(e instanceof Error ? e.message : "Failed to save config");
+		} finally {
+			setAzConfigSaving(false);
 		}
 	};
 
@@ -960,9 +1085,202 @@ useEffect(() => {
 								sync leads and activity.
 							</p>
 							{agencyZoomConnected ? (
-								<div className="flex items-center gap-2 text-sm text-green-700">
-									<CheckCircle2 className="h-4 w-4" />
-									Connected
+								<div className="space-y-4">
+									<div className="flex items-center justify-between gap-3">
+										<div className="flex items-center gap-2 text-sm text-green-700">
+											<CheckCircle2 className="h-4 w-4" />
+											Connected
+										</div>
+										{isOwner && (
+											<button
+												type="button"
+												onClick={fetchAzConfig}
+												disabled={azConfigLoading}
+												className="text-xs border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F] hover:bg-gray-50 disabled:opacity-50"
+											>
+												{azConfigLoading ? (
+													<span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Loading...</span>
+												) : "Configure AgencyZoom"}
+											</button>
+										)}
+									</div>
+									{azConfigError && (
+										<div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+											{azConfigError}
+										</div>
+									)}
+									{azCustomFields.length > 0 && (
+										<div className="space-y-3 border-t border-[#E0DEDB] pt-3">
+											<div>
+												<label className="block text-xs font-medium text-[#605A57] mb-1">Pipeline</label>
+												<select
+													className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+													value={azConfig.pipeline_id}
+													onChange={(e) => setAzConfig((prev) => ({ ...prev, pipeline_id: e.target.value, stage_id: "" }))}
+												>
+													<option value="">— select —</option>
+													{azPipelines.map((p) => (
+														<option key={p.id} value={String(p.id)}>{p.name}</option>
+													))}
+												</select>
+											</div>
+											<div>
+												<label className="block text-xs font-medium text-[#605A57] mb-1">Stage</label>
+												<select
+													className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+													value={azConfig.stage_id}
+													onChange={(e) => setAzConfig((prev) => ({ ...prev, stage_id: e.target.value }))}
+												>
+													<option value="">— select —</option>
+													{(azPipelines.find((p) => String(p.id) === azConfig.pipeline_id)?.stages ?? []).map((s) => (
+														<option key={s.id} value={String(s.id)}>{s.name}</option>
+													))}
+												</select>
+											</div>
+											<div>
+												<label className="block text-xs font-medium text-[#605A57] mb-1">Lead Source</label>
+												<select
+													className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+													value={azConfig.lead_source_id}
+													onChange={(e) => setAzConfig((prev) => ({ ...prev, lead_source_id: e.target.value }))}
+												>
+													<option value="">— select —</option>
+													{azLeadSources.map((ls) => (
+														<option key={ls.id} value={String(ls.id)}>{ls.name}</option>
+													))}
+												</select>
+											</div>
+											<div>
+												<label className="block text-xs font-medium text-[#605A57] mb-1">Primary Producer</label>
+												<select
+													className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+													value={azConfig.primary_producer_id}
+													onChange={(e) => setAzConfig((prev) => ({ ...prev, primary_producer_id: e.target.value }))}
+												>
+													<option value="">— select —</option>
+													{azEmployees.map((emp) => (
+														<option key={emp.id} value={String(emp.id)}>
+															{emp.name ?? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim()}
+														</option>
+													))}
+												</select>
+											</div>
+											<div>
+												<label className="block text-xs font-medium text-[#605A57] mb-1">
+													Primary CSR <span className="text-[#A0998F] font-normal">(optional)</span>
+												</label>
+												<select
+													className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+													value={azConfig.primary_csr_id}
+													onChange={(e) => setAzConfig((prev) => ({ ...prev, primary_csr_id: e.target.value }))}
+												>
+													<option value="">— none —</option>
+													{azEmployees.map((emp) => (
+														<option key={emp.id} value={String(emp.id)}>
+															{emp.name ?? `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim()}
+														</option>
+													))}
+												</select>
+											</div>
+											<div>
+												<label className="block text-xs font-medium text-[#605A57] mb-1">Location / Agency Number</label>
+												<select
+													className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+													value={azConfig.location_code}
+													onChange={(e) => setAzConfig((prev) => ({ ...prev, location_code: e.target.value }))}
+												>
+													<option value="">— select —</option>
+													{azLocations.map((loc, i) => {
+														const val = loc.agencyNumber ?? loc.locationCode ?? "";
+														const label = loc.agencyNumber ?? loc.locationCode ?? loc.name ?? val;
+														return <option key={i} value={val}>{label}</option>;
+													})}
+												</select>
+											</div>
+											<div className="border-t border-[#E0DEDB] pt-3 space-y-2">
+												<p className="text-xs font-medium text-[#605A57]">Custom Field Mapping</p>
+												<div>
+													<label className="block text-xs text-[#605A57] mb-1">Roof Year field</label>
+													<select
+														className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+														value={azConfig.cf_roof_year}
+														onChange={(e) => setAzConfig((prev) => ({ ...prev, cf_roof_year: e.target.value }))}
+													>
+														<option value="">— select —</option>
+														{azCustomFields.map((f) => (
+															<option key={f.fieldName} value={f.fieldName}>{f.fieldLabel}</option>
+														))}
+													</select>
+												</div>
+												<div>
+													<label className="block text-xs text-[#605A57] mb-1">Roof Type field</label>
+													<select
+														className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+														value={azConfig.cf_roof_type}
+														onChange={(e) => setAzConfig((prev) => ({ ...prev, cf_roof_type: e.target.value }))}
+													>
+														<option value="">— select —</option>
+														{azCustomFields.map((f) => (
+															<option key={f.fieldName} value={f.fieldName}>{f.fieldLabel}</option>
+														))}
+													</select>
+												</div>
+												<div>
+													<label className="block text-xs text-[#605A57] mb-1">Flooring Types field</label>
+													<select
+														className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+														value={azConfig.cf_flooring_types}
+														onChange={(e) => setAzConfig((prev) => ({ ...prev, cf_flooring_types: e.target.value }))}
+													>
+														<option value="">— select —</option>
+														{azCustomFields.map((f) => (
+															<option key={f.fieldName} value={f.fieldName}>{f.fieldLabel}</option>
+														))}
+													</select>
+												</div>
+												<div>
+													<label className="block text-xs text-[#605A57] mb-1">Bathrooms field</label>
+													<select
+														className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+														value={azConfig.cf_bathrooms}
+														onChange={(e) => setAzConfig((prev) => ({ ...prev, cf_bathrooms: e.target.value }))}
+													>
+														<option value="">— select —</option>
+														{azCustomFields.map((f) => (
+															<option key={f.fieldName} value={f.fieldName}>{f.fieldLabel}</option>
+														))}
+													</select>
+												</div>
+												<div>
+													<label className="block text-xs text-[#605A57] mb-1">Occupation Degree field</label>
+													<select
+														className="w-full text-sm border border-[#E0DEDB] rounded px-2 py-1 bg-white text-[#37322F]"
+														value={azConfig.cf_occupation_degree}
+														onChange={(e) => setAzConfig((prev) => ({ ...prev, cf_occupation_degree: e.target.value }))}
+													>
+														<option value="">— select —</option>
+														{azCustomFields.map((f) => (
+															<option key={f.fieldName} value={f.fieldName}>{f.fieldLabel}</option>
+														))}
+													</select>
+												</div>
+											</div>
+											<div className="flex items-center gap-2 pt-1">
+												<button
+													type="button"
+													onClick={handleSaveAzConfig}
+													disabled={azConfigSaving}
+													className="flex items-center gap-1.5 text-sm bg-[#37322F] hover:bg-[#37322F]/90 text-white rounded px-3 py-1.5 disabled:opacity-50"
+												>
+													{azConfigSaving ? (
+														<><Loader2 className="h-3 w-3 animate-spin" />Saving...</>
+													) : azConfigSaved ? (
+														<><CheckCircle2 className="h-3 w-3" />Saved</>
+													) : "Save"}
+												</button>
+											</div>
+										</div>
+									)}
 								</div>
 							) : (
 								<>

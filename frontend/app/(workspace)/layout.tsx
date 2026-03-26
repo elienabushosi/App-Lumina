@@ -204,6 +204,7 @@ export default function WorkspaceLayout({
 					}),
 					fetch(`${config.apiUrl}/api/agencyzoom/status`, {
 						cache: "no-store",
+						headers: authHeaders,
 					}),
 				]);
 

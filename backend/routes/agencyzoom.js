@@ -1,95 +1,177 @@
 import express from "express";
 import {
   connectAgencyZoom,
-  loadAgencyZoomConnection,
   getAgencyZoomJwt,
 } from "../lib/agencyzoom.js";
+import { requireAuth } from "../middleware/auth.js";
+import { getSupabase } from "../lib/supabase.js";
 
 const router = express.Router();
 const DEFAULT_ORG_ID = "default";
 const AGENCYZOOM_BASE_URL =
   process.env.AGENCYZOOM_BASE_URL || "https://api.agencyzoom.com";
 
-router.get("/status", async (req, res) => {
+// ---------------------------------------------------------------------------
+// Status — org-aware (requireAuth), falls back to "default" in dev bypass
+// ---------------------------------------------------------------------------
+router.get("/status", requireAuth, async (req, res) => {
   try {
-    const conn = await loadAgencyZoomConnection(DEFAULT_ORG_ID);
-    const connected = !!(conn && conn.jwt_token);
-    res.json({ connected });
+    const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
+    // Attempt to get (or refresh) a valid JWT — throws if credentials are
+    // missing or the stored password no longer works.
+    await getAgencyZoomJwt(orgId);
+    res.json({ connected: true });
   } catch (error) {
-    console.error("[AgencyZoom] status error:", error.message);
-    res.status(500).json({ error: "Failed to load AgencyZoom status" });
+    // Distinguish a genuine auth failure from an unexpected server error
+    const msg = error.message ?? "";
+    const isAuthFailure =
+      msg.includes("No stored") ||
+      msg.includes("Invalid AgencyZoom") ||
+      msg.includes("credentials");
+    if (!isAuthFailure) {
+      console.error("[AgencyZoom] status error:", msg);
+    }
+    res.json({ connected: false });
   }
 });
 
-router.post("/connect", async (req, res) => {
+// ---------------------------------------------------------------------------
+// Connect — save credentials for the org
+// ---------------------------------------------------------------------------
+router.post("/connect", requireAuth, async (req, res) => {
   const { email, password } = req.body || {};
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
 
   if (!email || !password) {
-    return res
-      .status(400)
-      .json({ error: "email and password are required" });
+    return res.status(400).json({ error: "email and password are required" });
   }
 
   try {
-    const result = await connectAgencyZoom({
-      email,
-      password,
-      orgId: DEFAULT_ORG_ID,
-    });
+    const result = await connectAgencyZoom({ email, password, orgId });
     res.json({ success: true, ...result });
   } catch (error) {
     console.error("[AgencyZoom] connect error:", error.message);
-    res
-      .status(400)
-      .json({ success: false, error: error.message || "Connect failed" });
+    res.status(400).json({ success: false, error: error.message || "Connect failed" });
   }
 });
 
-async function proxyAgencyZoom(req, res, path) {
+// ---------------------------------------------------------------------------
+// Helper — proxy a GET to the AZ API using the org's JWT
+// ---------------------------------------------------------------------------
+async function proxyAgencyZoom(orgId, res, path) {
   try {
-    const jwt = await getAgencyZoomJwt(DEFAULT_ORG_ID);
+    const jwt = await getAgencyZoomJwt(orgId);
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}${path}`;
     const response = await fetch(url, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-      },
+      headers: { Authorization: `Bearer ${jwt}` },
     });
     const text = await response.text();
     if (!response.ok) {
-      console.error(
-        "[AgencyZoom] Config proxy failed:",
-        path,
-        response.status,
-        text.slice(0, 300)
-      );
-      return res.status(500).json({
-        error: `AgencyZoom config request failed: ${response.status}`,
-      });
+      console.error("[AgencyZoom] Config proxy failed:", path, response.status, text.slice(0, 300));
+      return res.status(500).json({ error: `AgencyZoom config request failed: ${response.status}` });
     }
     let json;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = { raw: text };
-    }
+    try { json = text ? JSON.parse(text) : null; } catch { json = { raw: text }; }
     return res.json(json);
   } catch (error) {
     console.error("[AgencyZoom] Config proxy error:", error.message);
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch AgencyZoom config data" });
+    return res.status(500).json({ error: "Failed to fetch AgencyZoom config data" });
   }
 }
 
-/**
- * POST /api/agencyzoom/leads/list
- * Fetch leads from Agency Zoom with optional filters and pagination.
- * Body: { page?, pageSize?, sort?, order?, status?, startDate?, endDate? }
- */
-router.post("/leads/list", async (req, res) => {
+// ---------------------------------------------------------------------------
+// GET /config/all — fetch all discovery data in parallel for the setup wizard
+// ---------------------------------------------------------------------------
+router.get("/config/all", requireAuth, async (req, res) => {
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
   try {
-    const jwt = await getAgencyZoomJwt(DEFAULT_ORG_ID);
+    const jwt = await getAgencyZoomJwt(orgId);
+    const base = AGENCYZOOM_BASE_URL.replace(/\/$/, "");
+
+    const fetchJson = async (path) => {
+      const r = await fetch(`${base}${path}`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      const text = await r.text();
+      if (!r.ok) {
+        console.error(`[AgencyZoom] /config/all fetch failed: ${path} → ${r.status} ${r.statusText} — ${text.slice(0, 200)}`);
+        return null;
+      }
+      try { return JSON.parse(text); } catch { return null; }
+    };
+
+    const [customFields, pipelinesAndStages, employees, leadSources, locations] =
+      await Promise.all([
+        fetchJson("/v1/api/custom-fields"),
+        fetchJson("/v1/api/pipelines-and-stages"),
+        fetchJson("/v1/api/employees"),
+        fetchJson("/v1/api/lead-sources"),
+        fetchJson("/v1/api/locations"),
+      ]);
+
+    // Load existing saved config for pre-population
+    const db = getSupabase();
+    const { data: savedConfig } = await db
+      .from("agencyzoom_config")
+      .select("*")
+      .eq("id_organization", orgId)
+      .maybeSingle();
+
+    res.json({ customFields, pipelinesAndStages, employees, leadSources, locations, savedConfig: savedConfig ?? null });
+  } catch (error) {
+    console.error("[AgencyZoom] /config/all error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /config — save org AgencyZoom config to DB
+// ---------------------------------------------------------------------------
+router.post("/config", requireAuth, async (req, res) => {
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
+  const {
+    lead_source_id, pipeline_id, stage_id, primary_producer_id,
+    primary_csr_id, location_code, country,
+    cf_roof_year, cf_roof_type, cf_flooring_types, cf_bathrooms, cf_occupation_degree,
+  } = req.body;
+
+  const db = getSupabase();
+  const { error } = await db.from("agencyzoom_config").upsert(
+    {
+      id_organization: orgId,
+      lead_source_id:      lead_source_id      ?? null,
+      pipeline_id:         pipeline_id         ?? null,
+      stage_id:            stage_id            ?? null,
+      primary_producer_id: primary_producer_id ?? null,
+      primary_csr_id:      primary_csr_id      ?? null,
+      location_code:       location_code       ?? null,
+      country:             country             ?? "US",
+      cf_roof_year:        cf_roof_year        ?? null,
+      cf_roof_type:        cf_roof_type        ?? null,
+      cf_flooring_types:   cf_flooring_types   ?? null,
+      cf_bathrooms:        cf_bathrooms        ?? null,
+      cf_occupation_degree: cf_occupation_degree ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id_organization" }
+  );
+
+  if (error) {
+    console.error("[AgencyZoom] /config save error:", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Leads
+// ---------------------------------------------------------------------------
+router.post("/leads/list", requireAuth, async (req, res) => {
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
+  try {
+    const jwt = await getAgencyZoomJwt(orgId);
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/list`;
 
     const body = {
@@ -104,10 +186,7 @@ router.post("/leads/list", async (req, res) => {
 
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
 
@@ -118,7 +197,6 @@ router.post("/leads/list", async (req, res) => {
     }
 
     const json = JSON.parse(text);
-    // Log first lead's keys to help verify field names during development
     const items = json.data ?? json.leads ?? json;
     if (Array.isArray(items) && items.length > 0) {
       console.log("[AgencyZoom] leads/list sample keys:", Object.keys(items[0]));
@@ -130,13 +208,10 @@ router.post("/leads/list", async (req, res) => {
   }
 });
 
-/**
- * GET /api/agencyzoom/leads/:leadId
- * Fetch a single lead with full details.
- */
-router.get("/leads/:leadId", async (req, res) => {
+router.get("/leads/:leadId", requireAuth, async (req, res) => {
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
   try {
-    const jwt = await getAgencyZoomJwt(DEFAULT_ORG_ID);
+    const jwt = await getAgencyZoomJwt(orgId);
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/${req.params.leadId}`;
 
     const response = await fetch(url, {
@@ -156,36 +231,15 @@ router.get("/leads/:leadId", async (req, res) => {
   }
 });
 
-// Simple config proxy endpoints to help discover IDs during setup.
-router.get("/config/lead-sources", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/lead-sources")
-);
-
-router.get("/config/pipelines", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/pipelines?type=lead")
-);
-
-router.get("/config/pipelines-and-stages", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/pipelines-and-stages")
-);
-
-router.get("/config/locations", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/locations")
-);
-
-router.get("/config/employees", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/employees")
-);
-
-router.get("/config/csrs", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/csrs")
-);
-
-// List custom field definitions (IDs and names) for leads – use to match our field names or get IDs.
-// If this 404s, AgencyZoom may use a different path; check their OpenAPI spec at app.agencyzoom.com/openapi
-router.get("/config/custom-fields", (req, res) =>
-  proxyAgencyZoom(req, res, "/v1/api/custom-fields")
-);
+// ---------------------------------------------------------------------------
+// Individual config proxy endpoints (org-aware)
+// ---------------------------------------------------------------------------
+router.get("/config/lead-sources",       requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/lead-sources"));
+router.get("/config/pipelines",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/pipelines?type=lead"));
+router.get("/config/pipelines-and-stages", requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/pipelines-and-stages"));
+router.get("/config/locations",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/locations"));
+router.get("/config/employees",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/employees"));
+router.get("/config/csrs",               requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/csrs"));
+router.get("/config/custom-fields",      requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/custom-fields"));
 
 export default router;
-
