@@ -1,6 +1,11 @@
 /**
  * Polls RingCentral call log every 30s. Logs ended calls; for calls with recordings,
  * inserts into call_recordings and kicks off Deepgram transcription.
+ *
+ * Token management: one platform instance is created at startup and kept alive.
+ * The RC SDK handles access-token refresh automatically. We listen for the
+ * refreshSuccess event to persist rotated tokens back to DB. If the refresh token
+ * itself expires (7-day RC limit), we stop the poller and flag for reconnect.
  */
 import { getRingCentralSDK } from "./ringcentral.js";
 import {
@@ -10,13 +15,16 @@ import {
 import { getSupabase } from "./supabase.js";
 import { processRecording } from "./recording-processor.js";
 
-const STATE_KEY = "default";
+export const STATE_KEY = "default";
 const POLL_INTERVAL_MS = 30 * 1000;
 const DATE_FROM_MINUTES = 30;
 
 const processedCallIds = new Set();
 let pollerStopped = false;
-let refreshTokenExpiredLogged = false;
+let intervalId = null;
+
+// Singleton platform instance — created once, kept alive across polls.
+let platform = null;
 
 function dateFrom() {
 	const d = new Date(Date.now() - DATE_FROM_MINUTES * 60 * 1000);
@@ -42,57 +50,128 @@ function formatEstTime(isoString) {
 	}
 }
 
-async function poll() {
-	if (pollerStopped) return;
-	const tokens = await getRingCentralTokens(STATE_KEY);
-	if (!tokens?.access_token) {
-		return;
-	}
-
+/**
+ * Creates the singleton platform instance, restores stored tokens, and wires
+ * up refreshSuccess / refreshError listeners.
+ * Returns the platform, or null if SDK/tokens are not available.
+ */
+async function initPlatform() {
 	const sdk = getRingCentralSDK();
-	if (!sdk) return;
+	if (!sdk) return null;
 
-	const platform = sdk.platform();
-	const oldTokens = {
+	const tokens = await getRingCentralTokens(STATE_KEY);
+	if (!tokens?.access_token) return null;
+
+	const p = sdk.platform();
+
+	await p.auth().setData({
 		access_token: tokens.access_token,
 		refresh_token: tokens.refresh_token,
 		expire_time: tokens.expire_time,
-	};
+	});
 
-	function pickPartyName(party) {
-		if (!party || typeof party !== "object") return null;
-
-		const candidates = [
-			party.name,
-			party.displayName,
-			party.contactName,
-			party.callerName,
-			party.userName,
-			party.partyName,
-			party?.contact?.name,
-			party?.party?.name,
-			party?.user?.name,
-		];
-
-		for (const c of candidates) {
-			if (typeof c === "string" && c.trim() !== "") return c;
+	// SDK auto-refreshes the access token; persist rotated tokens to DB.
+	p.on(p.events.refreshSuccess, async () => {
+		try {
+			const data = await p.auth().data();
+			await setRingCentralTokens(STATE_KEY, {
+				access_token: data.access_token,
+				refresh_token: data.refresh_token,
+				expire_time: data.expire_time,
+			});
+			console.log("[CallLog] Persisted refreshed RC tokens");
+		} catch (e) {
+			console.error("[CallLog] Failed to persist refreshed tokens:", e.message);
 		}
+	});
 
-		// If name is an object (rare but possible), try displayName fields.
-		if (typeof party.name === "object" && party.name) {
-			const nested = [
-				party.name.displayName,
-				party.name.value,
-				party.name.name,
-			];
-			for (const c of nested) {
-				if (typeof c === "string" && c.trim() !== "") return c;
-			}
-		}
+	// Refresh token expired (7-day RC limit) — stop poller, require reconnect.
+	p.on(p.events.refreshError, () => {
+		console.error(
+			"🔴 [CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
+		);
+		pollerStopped = true;
+	});
 
-		return null;
+	return p;
+}
+
+function pickPartyName(party) {
+	if (!party || typeof party !== "object") return null;
+
+	const candidates = [
+		party.name,
+		party.displayName,
+		party.contactName,
+		party.callerName,
+		party.userName,
+		party.partyName,
+		party?.contact?.name,
+		party?.party?.name,
+		party?.user?.name,
+	];
+
+	for (const c of candidates) {
+		if (typeof c === "string" && c.trim() !== "") return c;
 	}
 
+	if (typeof party.name === "object" && party.name) {
+		const nested = [
+			party.name.displayName,
+			party.name.value,
+			party.name.name,
+		];
+		for (const c of nested) {
+			if (typeof c === "string" && c.trim() !== "") return c;
+		}
+	}
+
+	return null;
+}
+
+function pickNameFromDetailedLegs(record) {
+	const legs = record.legs;
+	if (!Array.isArray(legs) || legs.length === 0) return null;
+
+	const acceptFirst = [];
+	const rest = [];
+	for (const leg of legs) {
+		if (String(leg.legType || "").toLowerCase() === "accept") {
+			acceptFirst.push(leg);
+		} else {
+			rest.push(leg);
+		}
+	}
+	const ordered = acceptFirst.length ? [...acceptFirst, ...rest] : legs;
+
+	for (const leg of ordered) {
+		const n =
+			pickPartyName(leg.to) ||
+			pickPartyName(leg.from) ||
+			(typeof leg.extension?.name === "string" && leg.extension.name.trim()
+				? leg.extension.name.trim()
+				: null);
+		if (n) return n;
+	}
+	return null;
+}
+
+function findAnsweringExtensionId(record) {
+	const legs = record.legs;
+	if (!Array.isArray(legs)) return null;
+	for (const leg of legs) {
+		if (String(leg.legType || "").toLowerCase() !== "accept") continue;
+		const id = leg.extension?.id ?? leg.extensionId;
+		if (id != null) return id;
+	}
+	for (const leg of legs) {
+		const id = leg.extension?.id ?? leg.extensionId;
+		if (id != null) return id;
+	}
+	return null;
+}
+
+async function enrichToPartyName(record, baseToName) {
 	/** In-memory for one poll — avoids duplicate GET /extension/{id} calls. */
 	const extensionNameCache = new Map();
 
@@ -123,126 +202,35 @@ async function poll() {
 		}
 	}
 
-	/**
-	 * Detailed call log legs often carry the answering extension / display names that
-	 * the top-level `to` party omits (company DID has no CNAM in `to.name`).
-	 */
-	function pickNameFromDetailedLegs(record) {
-		const legs = record.legs;
-		if (!Array.isArray(legs) || legs.length === 0) return null;
+	if (baseToName) return baseToName;
 
-		const acceptFirst = [];
-		const rest = [];
-		for (const leg of legs) {
-			if (String(leg.legType || "").toLowerCase() === "accept") {
-				acceptFirst.push(leg);
-			} else {
-				rest.push(leg);
-			}
-		}
-		const ordered = acceptFirst.length ? [...acceptFirst, ...rest] : legs;
-
-		for (const leg of ordered) {
-			const n =
-				pickPartyName(leg.to) ||
-				pickPartyName(leg.from) ||
-				(typeof leg.extension?.name === "string" && leg.extension.name.trim()
-					? leg.extension.name.trim()
-					: null);
-			if (n) return n;
-		}
-		return null;
+	if (record.to && typeof record.to.location === "string" && record.to.location.trim()) {
+		return record.to.location.trim();
 	}
 
-	function findAnsweringExtensionId(record) {
-		const legs = record.legs;
-		if (!Array.isArray(legs)) return null;
-		for (const leg of legs) {
-			if (String(leg.legType || "").toLowerCase() !== "accept") continue;
-			const id = leg.extension?.id ?? leg.extensionId;
-			if (id != null) return id;
-		}
-		for (const leg of legs) {
-			const id = leg.extension?.id ?? leg.extensionId;
-			if (id != null) return id;
-		}
-		return null;
+	const fromLegs = pickNameFromDetailedLegs(record);
+	if (fromLegs) return fromLegs;
+
+	const extId = findAnsweringExtensionId(record);
+	if (extId != null) {
+		const resolved = await getExtensionDisplayName(extId);
+		if (resolved) return resolved;
 	}
 
-	async function enrichToPartyName(record, baseToName) {
-		if (baseToName) return baseToName;
-
-		if (
-			record.to &&
-			typeof record.to.location === "string" &&
-			record.to.location.trim()
-		) {
-			return record.to.location.trim();
-		}
-
-		const fromLegs = pickNameFromDetailedLegs(record);
-		if (fromLegs) return fromLegs;
-
-		const extId = findAnsweringExtensionId(record);
-		if (extId != null) {
-			const resolved = await getExtensionDisplayName(extId);
-			if (resolved) return resolved;
-		}
-
-		if (
-			record.to &&
-			record.to.extensionNumber != null &&
-			String(record.to.extensionNumber).trim() !== ""
-		) {
-			return `Extension ${String(record.to.extensionNumber).trim()}`;
-		}
-
-		return null;
+	if (
+		record.to &&
+		record.to.extensionNumber != null &&
+		String(record.to.extensionNumber).trim() !== ""
+	) {
+		return `Extension ${String(record.to.extensionNumber).trim()}`;
 	}
 
-	async function persistUpdatedTokensIfNeeded() {
-		try {
-			// The RingCentral SDK may silently refresh access tokens when needed.
-			// Persist any rotated refresh token so the next poll keeps working.
-			const authData = await platform.auth().data();
-			const nextAccess = authData?.access_token;
-			const nextRefresh = authData?.refresh_token;
-			const nextExpire = authData?.expire_time;
-			const nextExpiresIn = authData?.expires_in;
+	return null;
+}
 
-			if (!nextAccess || !nextRefresh) return;
-
-			const changed =
-				nextAccess !== oldTokens.access_token ||
-				nextRefresh !== oldTokens.refresh_token ||
-				nextExpire !== oldTokens.expire_time;
-
-			if (!changed) return;
-
-			await setRingCentralTokens(STATE_KEY, {
-				access_token: nextAccess,
-				refresh_token: nextRefresh,
-				expire_time: nextExpire,
-				expires_in: nextExpiresIn,
-			});
-
-			console.log("[CallLog] Persisted refreshed RingCentral tokens");
-		} catch (e) {
-			// Don't fail call logging because token persistence failed.
-			console.error("[CallLog] Failed to persist refreshed tokens:", e.message);
-		}
-	}
-
-	try {
-		await platform.auth().setData({
-			access_token: tokens.access_token,
-			refresh_token: tokens.refresh_token,
-			expire_time: tokens.expire_time,
-		});
-	} catch (e) {
-		console.error("[CallLog poll] Failed to set auth:", e.message);
-		return;
-	}
+async function poll() {
+	if (pollerStopped) return;
+	if (!platform) return;
 
 	try {
 		const allRecords = [];
@@ -251,12 +239,10 @@ async function poll() {
 		const perPage = 100;
 
 		do {
-			// Account-level = all extensions' calls (dashboard shows these). Extension-level = only the connected extension.
 			const resp = await platform.get("/restapi/v1.0/account/~/call-log", {
 				dateFrom: dateFrom(),
 				perPage,
 				page,
-				// Adds `legs` (e.g. Accept + extension id) so we can resolve receiver name.
 				view: "Detailed",
 			});
 			const data = await resp.json();
@@ -284,7 +270,6 @@ async function poll() {
 			}
 		}
 
-		let newCount = 0;
 		let loggedMissingNames = false;
 		for (const record of allRecords) {
 			const id = record.id;
@@ -292,18 +277,14 @@ async function poll() {
 			const hasRecording = !!recordingContentUri;
 
 			if (!id) continue;
-			// If we already saw this call but there was no recording content URI yet,
-			// keep checking until it becomes available.
 			if (processedCallIds.has(id) && !hasRecording) continue;
 
 			processedCallIds.add(id);
-			newCount++;
 
 			const from = record.from?.phoneNumber ?? record.from?.extensionNumber ?? record.from?.name ?? "—";
 			const to = record.to?.phoneNumber ?? record.to?.extensionNumber ?? record.to?.name ?? "—";
 			const fromName = pickPartyName(record.from);
 			let toName = pickPartyName(record.to);
-			// Only enrich when we persist (avoids extra /extension calls for log-only rows).
 			if (hasRecording) {
 				toName = await enrichToPartyName(record, toName);
 			}
@@ -312,8 +293,6 @@ async function poll() {
 			const type = record.type ?? "—";
 			const result = record.result ?? "—";
 			const direction = record.direction ?? "—";
-			// Match RingCentral call-log semantics: `from` / `to` are already the wire parties
-			// (inbound: customer → from, your number → to; outbound: your line → from, callee → to).
 			const fromNumber = from !== "—" ? from : null;
 			const toNumber = to !== "—" ? to : null;
 
@@ -370,7 +349,6 @@ async function poll() {
 					console.error("[CallLog] Insert recording error:", e.message);
 				}
 			} else if (hasRecording && existingRecordingIds.has(id)) {
-				// Backfill names for already-inserted rows so UI updates immediately.
 				try {
 					const db = getSupabase();
 					await db
@@ -387,6 +365,7 @@ async function poll() {
 				}
 			}
 		}
+
 		const mostRecent = allRecords
 			.map((r) => r.startTime)
 			.filter(Boolean)
@@ -399,42 +378,34 @@ async function poll() {
 			}, allRecords[0]?.startTime ?? null);
 
 		const mostRecentEst = mostRecent ? formatEstTime(mostRecent) : null;
-		const mostRecentText = mostRecentEst ? mostRecentEst : "—";
-
 		console.log(
-			`🕒 [CallLog] Poll run - ${allRecords.length} calls in the logs from last ${DATE_FROM_MINUTES}mins, most recent call was at ${mostRecentText}`
+			`🕒 [CallLog] Poll run - ${allRecords.length} calls in the logs from last ${DATE_FROM_MINUTES}mins, most recent call was at ${mostRecentEst ?? "—"}`
 		);
-
-		// Persist tokens after polling so any refresh-token rotation is not lost.
-		await persistUpdatedTokensIfNeeded();
 	} catch (e) {
-		// If RingCentral refreshed/rotated tokens before failing, persist them.
-		try {
-			await persistUpdatedTokensIfNeeded();
-		} catch {
-			// ignore
-		}
-
 		const msg = e?.message || "";
+		// refreshError event handles this, but catch it here too as a safety net.
 		if (/refresh token has expired/i.test(msg)) {
-			if (!refreshTokenExpiredLogged) {
+			if (!pollerStopped) {
 				console.error(
 					"🔴 [CallLog] Refresh token has expired. Reconnect RingCentral to continue polling."
 				);
-				refreshTokenExpiredLogged = true;
+				pollerStopped = true;
 			}
-			pollerStopped = true;
 			return;
 		}
-
 		console.error("[CallLog poll] API error:", msg);
 	}
 }
 
-let intervalId = null;
-
-export function startCallLogPoller() {
+export async function startCallLogPoller() {
 	if (intervalId) return;
+
+	platform = await initPlatform();
+	if (!platform) {
+		console.log("📞 [CallLog] No RC tokens found — poller not started.");
+		return;
+	}
+
 	console.log("📞 [CallLog] Poller started (every 30s). Will log new ended calls.");
 	poll();
 	intervalId = setInterval(poll, POLL_INTERVAL_MS);
@@ -446,4 +417,15 @@ export function stopCallLogPoller() {
 		intervalId = null;
 		console.log("📞 [CallLog] Poller stopped.");
 	}
+}
+
+/**
+ * Call this after a successful RC OAuth reconnect to restart the poller
+ * with fresh tokens.
+ */
+export async function resetAndRestartPoller() {
+	stopCallLogPoller();
+	pollerStopped = false;
+	platform = null;
+	await startCallLogPoller();
 }

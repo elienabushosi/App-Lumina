@@ -13,6 +13,7 @@ import {
 	setRingCentralTokens,
 	setRingCentralSubscriptionId,
 } from "../lib/ringcentral-token-store.js";
+import { resetAndRestartPoller } from "../lib/ringcentral-call-log-poller.js";
 
 const router = express.Router();
 const STATE_KEY = "default";
@@ -101,6 +102,11 @@ router.get("/callback", async (req, res) => {
 			expires_in: authData.expires_in,
 		});
 		console.log("[RingCentral] Tokens stored for key:", key);
+
+		// Restart the poller with the fresh tokens.
+		resetAndRestartPoller().catch((e) =>
+			console.error("[RingCentral] Failed to restart poller:", e.message)
+		);
 
 		// Create webhook subscription if URL is configured (e.g. ngrok)
 		const webhookUrl = process.env.RINGCENTRAL_WEBHOOK_URL;
