@@ -266,10 +266,19 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 - ✅ Research report persistence Phase 1: `researchReport` written to `localStorage` under `research_report_${agencyZoomLeadId}` on every state change in `/research-agent`. `/agency-zoom-leads/[id]` reads on load — renders report section (Property summary, Exterior & site, Interior finishes) at bottom; button shows "Refresh Research" if report exists.
 - ✅ Lead detail page field labels changed from ALL CAPS to title case (removed `uppercase` Tailwind class from all field label spans)
 
+**Completed (2026-03-26):**
+- ✅ Per-user Salesforce credentials: `salesforce_credentials` table (migration 012), `GET/POST /api/auth/sf-credentials` routes, Settings UI card with username + password fields, show/hide toggle, "Credentials saved" status display
+- ✅ `agentId` mismatch fixed: proposals route now always sets `agentId = req.user.IdUser` server-side, never trusts client. Frontend removed `agentId` from POST body, added `Authorization: Bearer` header
+- ✅ Active Agent selector removed from Settings page and sidebar (now redundant — agentId comes from auth)
+- ✅ Dev bypass `Role` fixed: `"admin"` → `"Owner"` in both `auth-utils.js` and `layout.tsx` so `isOwner`-gated UI renders in dev
+- ✅ AgencyZoom multi-tenant (Task #9): `agencyzoom_config` table (migration 013), all AZ routes now use `requireAuth` + `req.user.IdOrganization`. New `GET /config/all` (parallel discovery + savedConfig). New `POST /config` (upsert). `agencyzoom-leads.js` DB-first with env var fallback. Settings page has full state + handlers for config wizard (fuzzyMatchField, fetchAzConfig, handleSaveAzConfig) — **JSX wizard UI not yet rendered** (see next item)
+- ✅ Farmers APEX Login card added to Settings with salesforce-farmers.png header image
+
 **Remaining:**
-1. Navigate within APEX to Alta and 360 — these are tools inside Salesforce, not separate URLs. Jake Ridley's + CG Insurance credentials are in `backend/.env`. Login works. Gemini needs to navigate within the SF UI to reach Alta/360 and fill the forms.
-2. **Research report persistence Phase 2 (after UI validated):** Replace localStorage with Supabase. Write migration based on confirmed `researchReport` shape. Swap localStorage reads/writes for `POST /api/research-reports` (on CAD success) and `PATCH /api/research-reports/:id` (on maps + realtor success). Upsert on `agency_zoom_lead_id` (one row per lead, always latest).
-3. Session saved as `sessions/jake-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
+1. **AZ config wizard JSX** — replace the simple "Connected" div in Settings (lines 1087–1091 of `settings/page.tsx`) with the config wizard dropdowns. State + handlers are already wired. Needs: Pipeline dropdown, Stage dropdown (filtered by selected pipeline), Lead Source dropdown, Primary Producer dropdown, Primary CSR dropdown, Location/Agency Number dropdown, 5 custom field dropdowns (Roof Year, Roof Type, Flooring Types, Bathrooms, Occupation Degree), Save button. Owner-only "Configure AgencyZoom" button that calls `fetchAzConfig()` to load options.
+2. Navigate within APEX to Alta and 360 — these are tools inside Salesforce, not separate URLs. Jake Ridley's + CG Insurance credentials are in `backend/.env`. Login works. Gemini needs to navigate within the SF UI to reach Alta/360 and fill the forms.
+3. **Research report persistence Phase 2 (after UI validated):** Replace localStorage with Supabase. Write migration based on confirmed `researchReport` shape. Swap localStorage reads/writes for `POST /api/research-reports` (on CAD success) and `PATCH /api/research-reports/:id` (on maps + realtor success). Upsert on `agency_zoom_lead_id` (one row per lead, always latest).
+4. Session saved as `sessions/jake-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
 
 **`researchReport` shape (confirmed, drives Phase 2 DB schema):**
 ```typescript

@@ -170,7 +170,7 @@ router.post("/:id/push-agencyzoom", async (req, res) => {
 			});
 		}
 
-		await createAgencyZoomLeadForCall(recording);
+		await createAgencyZoomLeadForCall(recording, req.user.IdUser);
 
 		return res.json({
 			ok: true,

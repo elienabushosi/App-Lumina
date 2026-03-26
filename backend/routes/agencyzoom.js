@@ -2,6 +2,9 @@ import express from "express";
 import {
   connectAgencyZoom,
   getAgencyZoomJwt,
+  connectAgencyZoomForUser,
+  getAgencyZoomJwtForUser,
+  loadUserAgencyZoomCredentials,
 } from "../lib/agencyzoom.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getSupabase } from "../lib/supabase.js";
@@ -16,21 +19,11 @@ const AGENCYZOOM_BASE_URL =
 // ---------------------------------------------------------------------------
 router.get("/status", requireAuth, async (req, res) => {
   try {
-    const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
-    // Attempt to get (or refresh) a valid JWT — throws if credentials are
-    // missing or the stored password no longer works.
-    await getAgencyZoomJwt(orgId);
-    res.json({ connected: true });
-  } catch (error) {
-    // Distinguish a genuine auth failure from an unexpected server error
-    const msg = error.message ?? "";
-    const isAuthFailure =
-      msg.includes("No stored") ||
-      msg.includes("Invalid AgencyZoom") ||
-      msg.includes("credentials");
-    if (!isAuthFailure) {
-      console.error("[AgencyZoom] status error:", msg);
-    }
+    const userId = req.user.IdUser;
+    await getAgencyZoomJwtForUser(userId);
+    const cred = await loadUserAgencyZoomCredentials(userId);
+    res.json({ connected: true, az_email: cred?.az_email ?? null });
+  } catch {
     res.json({ connected: false });
   }
 });
@@ -40,6 +33,7 @@ router.get("/status", requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post("/connect", requireAuth, async (req, res) => {
   const { email, password } = req.body || {};
+  const userId = req.user.IdUser;
   const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
 
   if (!email || !password) {
@@ -47,7 +41,7 @@ router.post("/connect", requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await connectAgencyZoom({ email, password, orgId });
+    const result = await connectAgencyZoomForUser({ email, password, userId, orgId });
     res.json({ success: true, ...result });
   } catch (error) {
     console.error("[AgencyZoom] connect error:", error.message);
@@ -58,9 +52,9 @@ router.post("/connect", requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Helper — proxy a GET to the AZ API using the org's JWT
 // ---------------------------------------------------------------------------
-async function proxyAgencyZoom(orgId, res, path) {
+async function proxyAgencyZoom(userId, res, path) {
   try {
-    const jwt = await getAgencyZoomJwt(orgId);
+    const jwt = await getAgencyZoomJwtForUser(userId);
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}${path}`;
     const response = await fetch(url, {
       method: "GET",
@@ -86,7 +80,7 @@ async function proxyAgencyZoom(orgId, res, path) {
 router.get("/config/all", requireAuth, async (req, res) => {
   const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
   try {
-    const jwt = await getAgencyZoomJwt(orgId);
+    const jwt = await getAgencyZoomJwtForUser(req.user.IdUser);
     const base = AGENCYZOOM_BASE_URL.replace(/\/$/, "");
 
     // Fetch with one retry on failure (handles rotating 429s from AZ rate limiter)
@@ -202,7 +196,7 @@ router.post("/config", requireAuth, async (req, res) => {
 router.post("/leads/list", requireAuth, async (req, res) => {
   const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
   try {
-    const jwt = await getAgencyZoomJwt(orgId);
+    const jwt = await getAgencyZoomJwtForUser(req.user.IdUser);
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/list`;
 
     const body = {
@@ -242,7 +236,7 @@ router.post("/leads/list", requireAuth, async (req, res) => {
 router.get("/leads/:leadId", requireAuth, async (req, res) => {
   const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
   try {
-    const jwt = await getAgencyZoomJwt(orgId);
+    const jwt = await getAgencyZoomJwtForUser(req.user.IdUser);
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/${req.params.leadId}`;
 
     const response = await fetch(url, {
@@ -265,12 +259,12 @@ router.get("/leads/:leadId", requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Individual config proxy endpoints (org-aware)
 // ---------------------------------------------------------------------------
-router.get("/config/lead-sources",       requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/lead-sources"));
-router.get("/config/pipelines",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/pipelines?type=lead"));
-router.get("/config/pipelines-and-stages", requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/pipelines-and-stages"));
-router.get("/config/locations",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/locations"));
-router.get("/config/employees",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/employees"));
-router.get("/config/csrs",               requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/csrs"));
-router.get("/config/custom-fields",      requireAuth, (req, res) => proxyAgencyZoom(req.user.IdOrganization ?? DEFAULT_ORG_ID, res, "/v1/api/custom-fields"));
+router.get("/config/lead-sources",       requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/lead-sources"));
+router.get("/config/pipelines",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/pipelines?type=lead"));
+router.get("/config/pipelines-and-stages", requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/pipelines-and-stages"));
+router.get("/config/locations",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/locations"));
+router.get("/config/employees",          requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/employees"));
+router.get("/config/csrs",               requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/csrs"));
+router.get("/config/custom-fields",      requireAuth, (req, res) => proxyAgencyZoom(req.user.IdUser, res, "/v1/api/custom-fields"));
 
 export default router;

@@ -125,6 +125,7 @@ const [isRequestingCode, setIsRequestingCode] = useState(false);
 	const [agencyZoomConnected, setAgencyZoomConnected] = useState<
 		boolean | null
 	>(null);
+	const [agencyZoomConnectedEmail, setAgencyZoomConnectedEmail] = useState<string | null>(null);
 	const [agencyZoomEmail, setAgencyZoomEmail] = useState("");
 	const [agencyZoomPassword, setAgencyZoomPassword] = useState("");
 	const [isConnectingAgencyZoom, setIsConnectingAgencyZoom] = useState(false);
@@ -231,8 +232,10 @@ const [isRequestingCode, setIsRequestingCode] = useState(false);
 				);
 				const data = await res.json();
 				setAgencyZoomConnected(data.connected ?? false);
+				setAgencyZoomConnectedEmail(data.az_email ?? null);
 			} catch {
 				setAgencyZoomConnected(false);
+				setAgencyZoomConnectedEmail(null);
 			}
 		};
 		fetchRingCentralStatus();
@@ -469,6 +472,7 @@ useEffect(() => {
 
 			setAgencyZoomSuccess("AgencyZoom connected successfully.");
 			setAgencyZoomConnected(true);
+			setAgencyZoomConnectedEmail(data.az_email ?? agencyZoomEmail);
 		} catch (err) {
 			setAgencyZoomError(
 				err instanceof Error
@@ -1089,7 +1093,7 @@ useEffect(() => {
 									<div className="flex items-center justify-between gap-3">
 										<div className="flex items-center gap-2 text-sm text-green-700">
 											<CheckCircle2 className="h-4 w-4" />
-											Connected
+											{agencyZoomConnectedEmail ? `Connected as ${agencyZoomConnectedEmail}` : "Connected"}
 										</div>
 										{isOwner && (
 											<button

@@ -1,4 +1,4 @@
-import { getAgencyZoomJwt, loadAgencyZoomConnection } from "./agencyzoom.js";
+import { getAgencyZoomJwtForUser } from "./agencyzoom.js";
 import { getSupabase } from "./supabase.js";
 
 const AGENCYZOOM_BASE_URL =
@@ -179,9 +179,12 @@ export async function buildLeadDataRequest(leadPayload, orgId) {
  * Expects the row to already have lead_payload from Claude.
  * @param {{ id: string, id_organization: string, ringcentral_call_id: string | null, lead_payload: any }} callRow
  */
-export async function createAgencyZoomLeadForCall(callRow) {
+export async function createAgencyZoomLeadForCall(callRow, pushingUserId) {
 	const orgId = callRow.id_organization || "default";
-	const jwt = await getAgencyZoomJwt(orgId);
+	if (!pushingUserId) {
+		throw new Error("[AgencyZoom] pushingUserId is required to create a lead. Connect AgencyZoom in Settings.");
+	}
+	const jwt = await getAgencyZoomJwtForUser(pushingUserId);
 	const body = await buildLeadDataRequest(callRow.lead_payload, orgId);
 
 	const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/create`;

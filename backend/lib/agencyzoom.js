@@ -165,6 +165,74 @@ export async function getAgencyZoomJwt(orgId = DEFAULT_ORG_ID) {
   return token;
 }
 
+// ---------------------------------------------------------------------------
+// Per-user credential functions
+// ---------------------------------------------------------------------------
+
+export async function loadUserAgencyZoomCredentials(userId) {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from("agencyzoom_user_credentials")
+    .select("id_user, id_organization, az_email, az_password, jwt_token, jwt_expires_at")
+    .eq("id_user", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+export async function saveUserAgencyZoomCredentials(userId, orgId, updates) {
+  const existing = await loadUserAgencyZoomCredentials(userId);
+  const row = {
+    id_user: userId,
+    id_organization: orgId,
+    az_email:        updates.az_email        ?? existing?.az_email        ?? null,
+    az_password:     updates.az_password     ?? existing?.az_password     ?? null,
+    jwt_token:       updates.jwt_token       !== undefined ? updates.jwt_token       : (existing?.jwt_token       ?? null),
+    jwt_expires_at:  updates.jwt_expires_at  !== undefined ? updates.jwt_expires_at  : (existing?.jwt_expires_at  ?? null),
+    updated_at: new Date().toISOString(),
+  };
+  const db = getSupabase();
+  const { error } = await db
+    .from("agencyzoom_user_credentials")
+    .upsert(row, { onConflict: "id_user" });
+  if (error) throw error;
+  return row;
+}
+
+export async function getAgencyZoomJwtForUser(userId) {
+  const cred = await loadUserAgencyZoomCredentials(userId);
+  if (!cred?.az_email || !cred?.az_password) {
+    throw new Error("[AgencyZoom] No credentials saved for this user. Connect AgencyZoom in Settings.");
+  }
+
+  const now = Date.now();
+  if (cred.jwt_token && cred.jwt_expires_at) {
+    const exp = new Date(cred.jwt_expires_at).getTime();
+    if (exp - now > 60_000) return cred.jwt_token;
+  }
+
+  const { token, expires_at } = await exchangeCredentialsForJwt(cred.az_email, cred.az_password);
+  await saveUserAgencyZoomCredentials(userId, cred.id_organization, {
+    jwt_token: token,
+    jwt_expires_at: expires_at,
+  });
+  return token;
+}
+
+export async function connectAgencyZoomForUser({ email, password, userId, orgId }) {
+  if (!email || !password) throw new Error("[AgencyZoom] email and password are required");
+  const { token, expires_at } = await exchangeCredentialsForJwt(email, password);
+  await saveUserAgencyZoomCredentials(userId, orgId, {
+    az_email: email,
+    az_password: password,
+    jwt_token: token,
+    jwt_expires_at: expires_at,
+  });
+  return { connected: true, az_email: email };
+}
+
+// ---------------------------------------------------------------------------
+
 /**
  * Verify credentials once and store email/password + JWT for an org.
  * @param {{ email: string; password: string; orgId?: string }} params
