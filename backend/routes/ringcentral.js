@@ -100,6 +100,8 @@ router.get("/callback", async (req, res) => {
 			refresh_token: authData.refresh_token,
 			expire_time: authData.expire_time,
 			expires_in: authData.expires_in,
+			refresh_token_expire_time: authData.refresh_token_expire_time,
+			refresh_token_expires_in: authData.refresh_token_expires_in,
 		});
 		console.log("[RingCentral] Tokens stored for key:", key);
 

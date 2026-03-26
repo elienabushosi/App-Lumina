@@ -57,7 +57,7 @@ export async function getRingCentralTokens(key) {
 	const db = getSupabase();
 	const { data, error } = await db
 		.from("ringcentral_connections")
-		.select("access_token, refresh_token, expire_time, subscription_id")
+		.select("access_token, refresh_token, expire_time, refresh_token_expire_time, subscription_id")
 		.eq("id_organization", key)
 		.maybeSingle();
 
@@ -70,6 +70,7 @@ export async function getRingCentralTokens(key) {
 			access_token: data.access_token,
 			refresh_token: data.refresh_token,
 			expire_time: data.expire_time ?? undefined,
+			refresh_token_expire_time: data.refresh_token_expire_time ?? undefined,
 			subscription_id: data.subscription_id ?? undefined,
 		};
 	}
@@ -83,7 +84,11 @@ export async function getRingCentralTokens(key) {
 export async function setRingCentralTokens(key, data) {
 	const expireTime =
 		data.expire_time ??
-		(data.expires_in ? Math.floor(Date.now() / 1000) + Number(data.expires_in) : null);
+		(data.expires_in ? Date.now() + Number(data.expires_in) * 1000 : null);
+
+	const refreshTokenExpireTime =
+		data.refresh_token_expire_time ??
+		(data.refresh_token_expires_in ? Date.now() + Number(data.refresh_token_expires_in) * 1000 : null);
 
 	let subscriptionId = data.subscription_id ?? null;
 	if (subscriptionId === null) {
@@ -97,6 +102,7 @@ export async function setRingCentralTokens(key, data) {
 		access_token: data.access_token,
 		refresh_token: data.refresh_token,
 		expire_time: expireTime,
+		refresh_token_expire_time: refreshTokenExpireTime,
 		subscription_id: subscriptionId,
 		updated_at: new Date().toISOString(),
 	};

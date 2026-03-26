@@ -68,6 +68,7 @@ async function initPlatform() {
 		access_token: tokens.access_token,
 		refresh_token: tokens.refresh_token,
 		expire_time: tokens.expire_time,
+		refresh_token_expire_time: tokens.refresh_token_expire_time ?? (Date.now() + 7 * 24 * 60 * 60 * 1000),
 	});
 
 	// SDK auto-refreshes the access token; persist rotated tokens to DB.
@@ -78,6 +79,7 @@ async function initPlatform() {
 				access_token: data.access_token,
 				refresh_token: data.refresh_token,
 				expire_time: data.expire_time,
+				refresh_token_expire_time: data.refresh_token_expire_time,
 			});
 			console.log("[CallLog] Persisted refreshed RC tokens");
 		} catch (e) {

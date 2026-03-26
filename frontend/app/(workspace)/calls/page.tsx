@@ -1,4 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { config } from "@/lib/config";
+import { getAuthToken } from "@/lib/auth";
 import {
 	Table,
 	TableBody,
@@ -38,20 +42,33 @@ type CallRow = {
 	lead_status: string | null;
 };
 
-async function fetchCalls(): Promise<CallRow[]> {
-	const res = await fetch(`${config.apiUrl}/api/calls`, {
-		// Server-side fetch; no cache to keep it fresh.
-		cache: "no-store",
-	});
-	if (!res.ok) {
-		return [];
-	}
-	const json = await res.json();
-	return json.items ?? [];
-}
+export default function CallsPage() {
+	const [calls, setCalls] = useState<CallRow[]>([]);
+	const [loading, setLoading] = useState(true);
 
-export default async function CallsPage() {
-	const calls = await fetchCalls();
+	useEffect(() => {
+		const fetchCalls = async () => {
+			try {
+				const token = getAuthToken();
+				const res = await fetch(`${config.apiUrl}/api/calls`, {
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
+					cache: "no-store",
+				});
+				if (!res.ok) {
+					setCalls([]);
+					return;
+				}
+				const json = await res.json();
+				setCalls(json.items ?? []);
+			} catch {
+				setCalls([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchCalls();
+	}, []);
 
 	return (
 		<div className="p-8">
@@ -100,7 +117,13 @@ export default async function CallsPage() {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{calls.length === 0 ? (
+							{loading ? (
+								<TableRow>
+									<TableCell colSpan={7} className="text-center text-sm text-[#605A57]">
+										Loading calls...
+									</TableCell>
+								</TableRow>
+							) : calls.length === 0 ? (
 								<TableRow>
 									<TableCell colSpan={7} className="text-center text-sm">
 										No calls found yet.

@@ -13,7 +13,7 @@ export async function getUserFromToken(token) {
 	if (token === "dev-bypass-token" && process.env.NODE_ENV !== "production") {
 		return {
 			IdUser: "dev-user-id",
-			IdOrganization: "dev-org-id",
+			IdOrganization: "default",
 			Email: "dev@example.com",
 			Name: "Dev User",
 			Role: "admin",

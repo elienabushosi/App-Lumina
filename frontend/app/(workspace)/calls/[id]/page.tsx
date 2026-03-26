@@ -1,6 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { config } from "@/lib/config";
+import { getAuthToken } from "@/lib/auth";
 import {
 	Table,
 	TableBody,
@@ -45,23 +48,57 @@ type CallDetail = {
 	lead_payload: any | null;
 };
 
-async function fetchCall(id: string): Promise<CallDetail | null> {
-	const res = await fetch(`${config.apiUrl}/api/calls/${id}`, {
-		cache: "no-store",
-	});
-	if (res.status === 404) return null;
-	if (!res.ok) return null;
-	return res.json();
-}
-
-export default async function CallDetailPage({
+export default function CallDetailPage({
 	params,
 }: {
 	params: { id: string };
 }) {
-	const call = await fetchCall(params.id);
-	if (!call) {
-		notFound();
+	const { id } = params;
+	const [call, setCall] = useState<CallDetail | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [notFound, setNotFound] = useState(false);
+
+	const fetchCall = async () => {
+		try {
+			const token = getAuthToken();
+			const res = await fetch(`${config.apiUrl}/api/calls/${id}`, {
+				headers: token ? { Authorization: `Bearer ${token}` } : {},
+				cache: "no-store",
+			});
+			if (res.status === 404) { setNotFound(true); return; }
+			if (!res.ok) { setNotFound(true); return; }
+			const data = await res.json();
+			setCall(data);
+		} catch {
+			setNotFound(true);
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	useEffect(() => { fetchCall(); }, [id]);
+
+	if (loading) {
+		return (
+			<div className="p-8">
+				<div className="max-w-5xl mx-auto">
+					<p className="text-sm text-[#605A57]">Loading call details...</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (notFound || !call) {
+		return (
+			<div className="p-8">
+				<div className="max-w-5xl mx-auto space-y-4">
+					<Link href="/calls" className="text-sm text-[#37322F] hover:underline">
+						← Back to Call Listener
+					</Link>
+					<p className="text-sm text-[#605A57]">Call not found.</p>
+				</div>
+			</div>
+		);
 	}
 
 	return (
@@ -90,6 +127,7 @@ export default async function CallDetailPage({
 							initialLeadStatus={call.lead_status}
 							hasTranscript={call.status === "transcribed"}
 							hasLeadPayload={!!call.lead_payload?.lead}
+							onRefresh={fetchCall}
 						/>
 					</div>
 				</div>

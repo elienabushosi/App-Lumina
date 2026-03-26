@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { config } from "@/lib/config";
+import { getAuthToken } from "@/lib/auth";
 import { Loader2, FileText } from "lucide-react";
 import { LeadStatusBadge } from "@/components/lead-status-badge";
 
@@ -12,6 +13,7 @@ type Props = {
 	initialLeadStatus: string | null;
 	hasTranscript: boolean;
 	hasLeadPayload: boolean;
+	onRefresh?: () => void;
 };
 
 export function CallActions({
@@ -19,6 +21,7 @@ export function CallActions({
 	initialLeadStatus,
 	hasTranscript,
 	hasLeadPayload,
+	onRefresh,
 }: Props) {
 	const router = useRouter();
 	const [isPushing, setIsPushing] = useState(false);
@@ -34,9 +37,10 @@ export function CallActions({
 		setMessage(null);
 
 		try {
+			const token = getAuthToken();
 			const res = await fetch(
 				`${config.apiUrl}/api/calls/${encodeURIComponent(callId)}/extract-lead`,
-				{ method: "POST" }
+				{ method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} }
 			);
 			const data = await res.json().catch(() => ({}));
 
@@ -46,10 +50,10 @@ export function CallActions({
 				);
 			}
 
-			setMessage("Lead extracted. Refreshing…");
+			setMessage("Lead extracted.");
 			setPayloadReady(true);
 			setLeadStatus(data.lead_status ?? "extracted");
-			router.refresh();
+			onRefresh?.();
 		} catch (err) {
 			setError(
 				err instanceof Error ? err.message : "Failed to extract lead from transcript."
@@ -65,13 +69,10 @@ export function CallActions({
 		setMessage(null);
 
 		try {
+			const token = getAuthToken();
 			const res = await fetch(
-				`${config.apiUrl}/api/calls/${encodeURIComponent(
-					callId
-				)}/push-agencyzoom`,
-				{
-					method: "POST",
-				}
+				`${config.apiUrl}/api/calls/${encodeURIComponent(callId)}/push-agencyzoom`,
+				{ method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} }
 			);
 			const data = await res.json().catch(() => ({}));
 
