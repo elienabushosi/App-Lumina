@@ -84,17 +84,6 @@ const passwordResetSchema = z
 
 type PasswordResetFormValues = z.infer<typeof passwordResetSchema>;
 
-const AGENTS = [
-	{ id: "jake-ridley", label: "Jake Ridley", org: "Ridley Insurance" },
-	{ id: "cg-agent-001", label: "CG Insurance", org: "Cntya G. Insurance" },
-] as const;
-
-const AGENT_STORAGE_KEY = "lumina_active_agent";
-
-export function getActiveAgentId(): string {
-	if (typeof window === "undefined") return AGENTS[0].id;
-	return localStorage.getItem(AGENT_STORAGE_KEY) ?? AGENTS[0].id;
-}
 
 export default function SettingsPage() {
 	const searchParams = useSearchParams();
@@ -107,8 +96,7 @@ export default function SettingsPage() {
 		};
 	} | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
-	const [activeAgentId, setActiveAgentId] = useState<string>(AGENTS[0].id);
-	const [isRequestingCode, setIsRequestingCode] = useState(false);
+const [isRequestingCode, setIsRequestingCode] = useState(false);
 	const [isResetting, setIsResetting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
@@ -159,6 +147,14 @@ export default function SettingsPage() {
 	const [rcExtensionsError, setRcExtensionsError] = useState<string | null>(null);
 	const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
 	const [savingExtMap, setSavingExtMap] = useState<Record<string, boolean>>({});
+
+	// Farmers APEX credentials
+	const [sfUsername, setSfUsername] = useState("");
+	const [sfPassword, setSfPassword] = useState("");
+	const [sfShowPassword, setSfShowPassword] = useState(false);
+	const [sfSaving, setSfSaving] = useState(false);
+	const [sfSaved, setSfSaved] = useState<{ username: string; updatedAt: string } | null>(null);
+	const [sfError, setSfError] = useState<string | null>(null);
 
 	const isOwner = currentUser?.user.Role === "Owner";
 
@@ -213,11 +209,7 @@ export default function SettingsPage() {
 		fetchAgencyZoomStatus();
 	}, []);
 
-	useEffect(() => {
-		setActiveAgentId(localStorage.getItem(AGENT_STORAGE_KEY) ?? AGENTS[0].id);
-	}, []);
-
-	useEffect(() => {
+useEffect(() => {
 		const fetchUser = async () => {
 			try {
 				const user = await getCurrentUser();
@@ -522,6 +514,52 @@ export default function SettingsPage() {
 		}
 	};
 
+	useEffect(() => {
+		const fetchSfCredentials = async () => {
+			try {
+				const token = getAuthToken();
+				const res = await fetch(`${config.apiUrl}/api/auth/sf-credentials`, {
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
+				});
+				if (res.ok) {
+					const data = await res.json();
+					if (data.set) {
+						setSfSaved({ username: data.sf_username, updatedAt: data.updated_at });
+					}
+				}
+			} catch {
+				// ignore — non-critical
+			}
+		};
+		fetchSfCredentials();
+	}, []);
+
+	const handleSaveSfCredentials = async () => {
+		if (!sfUsername || !sfPassword) return;
+		setSfSaving(true);
+		setSfError(null);
+		try {
+			const token = getAuthToken();
+			const res = await fetch(`${config.apiUrl}/api/auth/sf-credentials`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					...(token ? { Authorization: `Bearer ${token}` } : {}),
+				},
+				body: JSON.stringify({ sf_username: sfUsername, sf_password: sfPassword }),
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || "Failed to save credentials");
+			setSfSaved({ username: sfUsername, updatedAt: new Date().toISOString() });
+			setSfUsername("");
+			setSfPassword("");
+		} catch (e) {
+			setSfError(e instanceof Error ? e.message : "Failed to save credentials");
+		} finally {
+			setSfSaving(false);
+		}
+	};
+
 	const handleUpgradeClick = async () => {
 		// Find annual price ID
 		const annualPriceId = products.find(
@@ -667,46 +705,7 @@ export default function SettingsPage() {
 				</h1>
 
 				<div className="space-y-6">
-					{/* Active Agent */}
-					<Card>
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2 text-base">
-								Active Agent
-							</CardTitle>
-							<p className="text-sm text-[#605A57]">
-								Select which agent's Salesforce session is used when running browser automation.
-							</p>
-						</CardHeader>
-						<CardContent className="flex flex-col gap-3">
-							{AGENTS.map((agent) => (
-								<button
-									key={agent.id}
-									onClick={() => {
-										setActiveAgentId(agent.id);
-										localStorage.setItem(AGENT_STORAGE_KEY, agent.id);
-										window.dispatchEvent(new Event("lumina_agent_changed"));
-									}}
-									className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
-										activeAgentId === agent.id
-											? "border-[#6C70BA] bg-[#6C70BA]/5"
-											: "border-[#E0DEDB] bg-white hover:bg-[#F7F5F3]"
-									}`}
-								>
-									<div>
-										<p className={`text-sm font-medium ${activeAgentId === agent.id ? "text-[#6C70BA]" : "text-[#37322F]"}`}>
-											{agent.label}
-										</p>
-										<p className="text-xs text-[#605A57]">{agent.org}</p>
-									</div>
-									{activeAgentId === agent.id && (
-										<Check className="h-4 w-4 text-[#6C70BA] shrink-0" />
-									)}
-								</button>
-							))}
-						</CardContent>
-					</Card>
-
-					{/* Change Password Section */}
+	{/* Change Password Section */}
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2">
@@ -1030,6 +1029,81 @@ export default function SettingsPage() {
 									</Button>
 								</>
 							)}
+						</CardContent>
+					</Card>
+
+					{/* Farmers APEX Login */}
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2 text-base">
+								<img
+									src="/salesforce-farmers.png"
+									alt="Farmers APEX"
+									className="h-14 w-auto object-contain shrink-0"
+								/>
+							</CardTitle>
+							<p className="text-sm text-[#605A57]">
+								Your Salesforce/APEX credentials for browser automation. Stored securely and used only for proposal creation.
+							</p>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							{sfSaved && (
+								<div className="flex items-center gap-2 text-sm text-green-700">
+									<CheckCircle2 className="h-4 w-4 shrink-0" />
+									<span>
+										Credentials saved for <strong>{sfSaved.username}</strong>
+										{" "}· last updated {format(new Date(sfSaved.updatedAt), "MMM d, yyyy")}
+									</span>
+								</div>
+							)}
+							{sfError && (
+								<div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+									{sfError}
+								</div>
+							)}
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<label className="block text-sm font-medium text-[#37322F] mb-1">
+										Username
+									</label>
+									<Input
+										type="text"
+										value={sfUsername}
+										onChange={(e) => setSfUsername(e.target.value)}
+										placeholder={sfSaved ? sfSaved.username : "Enter Salesforce username"}
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-[#37322F] mb-1">
+										Password
+									</label>
+									<div className="relative">
+										<Input
+											type={sfShowPassword ? "text" : "password"}
+											value={sfPassword}
+											onChange={(e) => setSfPassword(e.target.value)}
+											placeholder={sfSaved ? "••••••••" : "Enter Salesforce password"}
+											className="pr-10"
+										/>
+										<button
+											type="button"
+											onClick={() => setSfShowPassword((v) => !v)}
+											className="absolute right-2 top-1/2 -translate-y-1/2 text-[#605A57] hover:text-[#37322F] text-xs"
+										>
+											{sfShowPassword ? "Hide" : "Show"}
+										</button>
+									</div>
+								</div>
+							</div>
+							<Button
+								onClick={handleSaveSfCredentials}
+								disabled={sfSaving || !sfUsername || !sfPassword}
+								className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+							>
+								{sfSaving ? (
+									<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+								) : sfSaved ? "Update Credentials" : "Save Credentials"}
+							</Button>
 						</CardContent>
 					</Card>
 

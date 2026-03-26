@@ -14,7 +14,11 @@ router.use(requireAuth);
 // Useful for testing the pipeline without going through a trigger adapter.
 router.post('/', async (req, res) => {
   try {
-    const input: ProposalInput = req.body;
+    const input: ProposalInput = {
+      ...req.body,
+      // Always use the authenticated user's IdUser as agentId — never trust the client
+      agentId: (req as any).user.IdUser,
+    };
 
     if (!input?.triggeredBy || !input?.property?.address) {
       res.status(400).json({ error: 'triggeredBy and property.address are required' });

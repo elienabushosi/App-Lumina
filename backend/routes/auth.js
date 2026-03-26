@@ -1464,6 +1464,52 @@ router.post("/password/reset-with-code", async (req, res) => {
 	}
 });
 
+// ---------------------------------------------------------------------------
+// Salesforce / Farmers APEX credentials (per user)
+// ---------------------------------------------------------------------------
+
+// GET /api/auth/sf-credentials — returns username + whether password is saved
+router.get("/sf-credentials", async (req, res) => {
+	const token = req.headers.authorization?.replace("Bearer ", "");
+	const user = await getUserFromToken(token);
+	if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+	const { data } = await supabase
+		.from("salesforce_credentials")
+		.select("sf_username, updated_at")
+		.eq("id_user", user.IdUser)
+		.maybeSingle();
+
+	if (!data) return res.json({ set: false, sf_username: null });
+	res.json({ set: true, sf_username: data.sf_username, updated_at: data.updated_at });
+});
+
+// POST /api/auth/sf-credentials — save or update credentials
+router.post("/sf-credentials", async (req, res) => {
+	const token = req.headers.authorization?.replace("Bearer ", "");
+	const user = await getUserFromToken(token);
+	if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+	const { sf_username, sf_password } = req.body;
+	if (!sf_username || !sf_password) {
+		return res.status(400).json({ error: "sf_username and sf_password are required." });
+	}
+
+	const { error } = await supabase.from("salesforce_credentials").upsert(
+		{
+			id_user: user.IdUser,
+			id_organization: user.IdOrganization,
+			sf_username,
+			sf_password,
+			updated_at: new Date().toISOString(),
+		},
+		{ onConflict: "id_user" }
+	);
+
+	if (error) return res.status(500).json({ error: error.message });
+	res.json({ ok: true });
+});
+
 // List all users in the caller's org (for extension mapping dropdowns).
 router.get("/org-users", async (req, res) => {
 	const token = req.headers.authorization?.replace("Bearer ", "");

@@ -8,13 +8,33 @@ import { join } from 'path';
 import { env } from '../config/env.js';
 import logger from '../lib/logger.js';
 import { startTimer } from '../lib/timer.js';
+import { getSupabase } from '../../lib/supabase.js';
 
 export type LoginResult = 'success' | 'mfa_required' | 'failed';
 
-function getAgentCredentials(agentId: string): { username: string; password: string } {
+/**
+ * Load credentials for an agent. Priority:
+ * 1. salesforce_credentials DB row keyed by agentId (= IdUser)
+ * 2. Env vars SF_USERNAME_<KEY> / SF_PASSWORD_<KEY> (legacy / dev fallback)
+ */
+async function getAgentCredentials(agentId: string): Promise<{ username: string; password: string }> {
+  try {
+    const db = getSupabase();
+    const { data } = await (db as any)
+      .from('salesforce_credentials')
+      .select('sf_username, sf_password')
+      .eq('id_user', agentId)
+      .maybeSingle();
+    if (data?.sf_username && data?.sf_password) {
+      return { username: data.sf_username, password: data.sf_password };
+    }
+  } catch (e: any) {
+    logger.warn({ step: 'login', msg: 'DB credential lookup failed, falling back to env', err: e.message });
+  }
+  // Env var fallback (legacy dev setup)
   const key = agentId.toUpperCase().replace(/-/g, '_');
-  const username = process.env[`SF_USERNAME_${key}`] ?? '';
-  const password = process.env[`SF_PASSWORD_${key}`] ?? '';
+  const username = process.env[`SF_USERNAME_${key}`] ?? process.env.SF_USERNAME ?? '';
+  const password = process.env[`SF_PASSWORD_${key}`] ?? process.env.SF_PASSWORD ?? '';
   return { username, password };
 }
 

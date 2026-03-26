@@ -44,11 +44,6 @@ import {
 	ChevronRight,
 } from "lucide-react";
 
-const AGENT_LABELS: Record<string, string> = {
-	"jake-ridley": "Jake Ridley",
-	"cg-agent-001": "CG Insurance",
-};
-
 function SidebarHeaderContent({
 	organizationName,
 }: {
@@ -56,19 +51,7 @@ function SidebarHeaderContent({
 }) {
 	const { state } = useSidebar();
 	const isCollapsed = state === "collapsed";
-	const [activeAgentLabel, setActiveAgentLabel] = useState<string | null>(null);
-
-	useEffect(() => {
-		function update() {
-			const id = localStorage.getItem("lumina_active_agent") ?? "jake-ridley";
-			setActiveAgentLabel(AGENT_LABELS[id] ?? id);
-		}
-		update();
-		window.addEventListener("lumina_agent_changed", update);
-		return () => window.removeEventListener("lumina_agent_changed", update);
-	}, []);
-
-	return (
+return (
 		<div className="flex flex-col items-center gap-3 p-4">
 			<img
 				src="/logos/Lumina-logo-transparent.svg"
@@ -80,10 +63,7 @@ function SidebarHeaderContent({
 					<h2 className="text-lg font-semibold text-[#37322F]">
 						{organizationName || "Organization"}
 					</h2>
-					{activeAgentLabel && (
-						<p className="text-xs text-[#605A57] mt-0.5">{activeAgentLabel}</p>
-					)}
-				</div>
+</div>
 			)}
 		</div>
 	);
@@ -164,7 +144,7 @@ export default function WorkspaceLayout({
 						IdUser: "dev-user-id",
 						Name: "Dev User",
 						Email: "dev@example.com",
-						Role: "admin",
+						Role: "Owner",
 						IdOrganization: "dev-org-id",
 					},
 					organization: {

@@ -1649,17 +1649,15 @@ function ResearchAgentInner() {
 														headers: {
 															"Content-Type":
 																"application/json",
+															...(getAuthToken()
+																? { Authorization: `Bearer ${getAuthToken()}` }
+																: {}),
 														},
 														body: JSON.stringify({
 															triggeredBy:
 																agencyZoomLeadId
 																	? "agency_zoom"
 																	: "apex_lead",
-															agentId:
-																localStorage.getItem(
-																	"lumina_active_agent",
-																) ??
-																"jake-ridley",
 															leadId:
 																agencyZoomLeadId ??
 																undefined,
