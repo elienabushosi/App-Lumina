@@ -5,53 +5,56 @@ const AGENCYZOOM_BASE_URL =
 	process.env.AGENCYZOOM_BASE_URL || "https://api.agencyzoom.com";
 
 /**
- * Lead custom field IDs from /api/agencyzoom/config/custom-fields (use the "fieldName" value for entityType "lead").
- * Override via env if your org uses different IDs.
+ * Load per-org AgencyZoom config from DB. Returns null if not configured.
  */
-function getLeadCustomFieldIds() {
+async function loadAgencyZoomConfig(orgId) {
+	try {
+		const db = getSupabase();
+		const { data } = await db
+			.from("agencyzoom_config")
+			.select("*")
+			.eq("id_organization", orgId)
+			.maybeSingle();
+		return data || null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Lead custom field IDs — DB-first, env var fallback for the "default" org.
+ */
+async function getLeadCustomFieldIds(orgId) {
+	const row = await loadAgencyZoomConfig(orgId);
 	return {
-		roofYear:
-			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_ROOF_YEAR || "cf54741",
-		roofType:
-			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_ROOF_TYPE || "cf54743",
-		flooringTypes:
-			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_FLOORING_TYPES || "cf54745",
-		numberOfBathrooms:
-			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_NUMBER_OF_BATHROOMS || "cf54747",
-		occupationDegree:
-			process.env.AGENCYZOOM_CUSTOM_FIELD_ID_OCCUPATION_DEGREE || "cf54749",
+		roofYear:         row?.cf_roof_year         ?? process.env.AGENCYZOOM_CUSTOM_FIELD_ID_ROOF_YEAR         ?? "cf54741",
+		roofType:         row?.cf_roof_type          ?? process.env.AGENCYZOOM_CUSTOM_FIELD_ID_ROOF_TYPE          ?? "cf54743",
+		flooringTypes:    row?.cf_flooring_types     ?? process.env.AGENCYZOOM_CUSTOM_FIELD_ID_FLOORING_TYPES     ?? "cf54745",
+		numberOfBathrooms: row?.cf_bathrooms         ?? process.env.AGENCYZOOM_CUSTOM_FIELD_ID_NUMBER_OF_BATHROOMS ?? "cf54747",
+		occupationDegree: row?.cf_occupation_degree  ?? process.env.AGENCYZOOM_CUSTOM_FIELD_ID_OCCUPATION_DEGREE  ?? "cf54749",
 	};
 }
 
 /**
- * Read org-level AgencyZoom config (IDs, location codes, etc.).
- * For now this is driven by env vars; later we can move to per-org config in DB.
- * Lead Source and Primary CSR must be valid IDs in your AgencyZoom org.
+ * Read org-level AgencyZoom config — DB-first, env var fallback for the "default" org.
  */
-function getAgencyZoomLeadConfig(orgId) {
+async function getAgencyZoomLeadConfig(orgId) {
+	const row = await loadAgencyZoomConfig(orgId);
 	const cfg = {
-		leadSourceId: Number(process.env.AGENCYZOOM_LEAD_SOURCE_ID || "0") || null,
-		pipelineId: Number(process.env.AGENCYZOOM_PIPELINE_ID || "0") || null,
-		stageId: Number(process.env.AGENCYZOOM_STAGE_ID || "0") || null,
-		assignTo: Number(process.env.AGENCYZOOM_PRIMARY_PRODUCER_ID || "0") || null,
-		csrId:
-			process.env.AGENCYZOOM_PRIMARY_CSR_ID !== undefined &&
-			process.env.AGENCYZOOM_PRIMARY_CSR_ID !== ""
-				? Number(process.env.AGENCYZOOM_PRIMARY_CSR_ID || "0") || null
-				: null,
-		agencyNumber: process.env.AGENCYZOOM_LOCATION_CODE || null,
-		country: process.env.AGENCYZOOM_COUNTRY || "US",
+		leadSourceId: Number(row?.lead_source_id      ?? process.env.AGENCYZOOM_LEAD_SOURCE_ID      ?? "0") || null,
+		pipelineId:   Number(row?.pipeline_id         ?? process.env.AGENCYZOOM_PIPELINE_ID         ?? "0") || null,
+		stageId:      Number(row?.stage_id            ?? process.env.AGENCYZOOM_STAGE_ID            ?? "0") || null,
+		assignTo:     Number(row?.primary_producer_id ?? process.env.AGENCYZOOM_PRIMARY_PRODUCER_ID ?? "0") || null,
+		csrId:        Number(row?.primary_csr_id      ?? process.env.AGENCYZOOM_PRIMARY_CSR_ID      ?? "0") || null,
+		agencyNumber: row?.location_code              ?? process.env.AGENCYZOOM_LOCATION_CODE        ?? null,
+		country:      row?.country                    ?? process.env.AGENCYZOOM_COUNTRY              ?? "US",
 	};
+	// Zero out csrId if not set
+	if (!cfg.csrId) cfg.csrId = null;
 
-	if (
-		!cfg.leadSourceId ||
-		!cfg.pipelineId ||
-		!cfg.stageId ||
-		!cfg.assignTo ||
-		!cfg.agencyNumber
-	) {
+	if (!cfg.leadSourceId || !cfg.pipelineId || !cfg.stageId || !cfg.assignTo || !cfg.agencyNumber) {
 		throw new Error(
-			"[AgencyZoom] Missing required lead config env vars. Set AGENCYZOOM_LEAD_SOURCE_ID, AGENCYZOOM_PIPELINE_ID, AGENCYZOOM_STAGE_ID, AGENCYZOOM_PRIMARY_PRODUCER_ID, AGENCYZOOM_LOCATION_CODE."
+			"[AgencyZoom] Missing required lead config. Configure in Settings → AgencyZoom Setup."
 		);
 	}
 
@@ -77,7 +80,7 @@ function splitName(fullName) {
  * @param {*} leadPayload - value from call_recordings.lead_payload
  * @param {string} orgId
  */
-export function buildLeadDataRequest(leadPayload, orgId) {
+export async function buildLeadDataRequest(leadPayload, orgId) {
 	if (!leadPayload || typeof leadPayload !== "object") {
 		throw new Error("[AgencyZoom] Missing lead payload");
 	}
@@ -88,7 +91,7 @@ export function buildLeadDataRequest(leadPayload, orgId) {
 		throw new Error("[AgencyZoom] Payload marked as not_a_lead; skipping create");
 	}
 
-	const cfg = getAgencyZoomLeadConfig(orgId);
+	const cfg = await getAgencyZoomLeadConfig(orgId);
 
 	const name = lead.name || {};
 	let first = name.first || null;
@@ -105,7 +108,7 @@ export function buildLeadDataRequest(leadPayload, orgId) {
 	const property = lead.property || {};
 
 	// AgencyZoom expects custom field ID (e.g. cf54741) as fieldName, not the label. Get IDs from /api/agencyzoom/config/custom-fields (entityType "lead").
-	const ids = getLeadCustomFieldIds();
+	const ids = await getLeadCustomFieldIds(orgId);
 	const customFields = [];
 	function addCustomField(fieldId, value) {
 		if (value != null && value !== "" && fieldId) {
@@ -179,16 +182,18 @@ export function buildLeadDataRequest(leadPayload, orgId) {
 export async function createAgencyZoomLeadForCall(callRow) {
 	const orgId = callRow.id_organization || "default";
 	const jwt = await getAgencyZoomJwt(orgId);
-	const body = buildLeadDataRequest(callRow.lead_payload, orgId);
+	const body = await buildLeadDataRequest(callRow.lead_payload, orgId);
 
 	const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/create`;
 	if (process.env.NODE_ENV === "development") {
 		console.log("[AgencyZoom] Lead create request (sanitized):", {
+			pipelineId: body.pipelineId,
+			stageId: body.stageId,
 			leadSourceId: body.leadSourceId,
-			csrId: body.csrId,
 			assignTo: body.assignTo,
+			agencyNumber: body.agencyNumber,
+			csrId: body.csrId,
 			customFieldsCount: body.customFields?.length ?? 0,
-			customFields: body.customFields,
 		});
 	}
 	const res = await fetch(url, {

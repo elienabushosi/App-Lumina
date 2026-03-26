@@ -89,19 +89,31 @@ router.get("/config/all", requireAuth, async (req, res) => {
     const jwt = await getAgencyZoomJwt(orgId);
     const base = AGENCYZOOM_BASE_URL.replace(/\/$/, "");
 
-    const fetchJson = async (path) => {
+    // Fetch with one retry on failure (handles rotating 429s from AZ rate limiter)
+    const fetchJson = async (path, attempt = 1) => {
       const r = await fetch(`${base}${path}`, {
         headers: { Authorization: `Bearer ${jwt}` },
       });
       const text = await r.text();
       if (!r.ok) {
+        if (r.status === 429 && attempt === 1) {
+          await new Promise((res) => setTimeout(res, 1500));
+          return fetchJson(path, 2);
+        }
         console.error(`[AgencyZoom] /config/all fetch failed: ${path} → ${r.status} ${r.statusText} — ${text.slice(0, 200)}`);
         return null;
       }
-      try { return JSON.parse(text); } catch { return null; }
+      try {
+        const json = JSON.parse(text);
+        const preview = Array.isArray(json)
+          ? `array(${json.length}) keys=${json[0] ? Object.keys(json[0]).join(",") : "empty"}`
+          : `object keys=${Object.keys(json).join(",")}`;
+        console.log(`[AgencyZoom] /config/all OK: ${path} → ${preview}`);
+        return json;
+      } catch { return null; }
     };
 
-    const [customFields, pipelinesAndStages, employees, leadSources, locations] =
+    const [customFieldsRaw, pipelinesAndStages, employeesRaw, leadSources, locationsRaw] =
       await Promise.all([
         fetchJson("/v1/api/custom-fields"),
         fetchJson("/v1/api/pipelines-and-stages"),
@@ -109,6 +121,25 @@ router.get("/config/all", requireAuth, async (req, res) => {
         fetchJson("/v1/api/lead-sources"),
         fetchJson("/v1/api/locations"),
       ]);
+
+    // Normalize custom fields: AZ returns { fieldName, label } but frontend expects fieldLabel
+    const customFields = Array.isArray(customFieldsRaw)
+      ? customFieldsRaw.map((f) => ({ ...f, fieldLabel: f.fieldLabel ?? f.label ?? f.fieldName }))
+      : customFieldsRaw;
+
+    // Normalize employees: AZ returns lowercase firstname/lastname
+    const employees = Array.isArray(employeesRaw)
+      ? employeesRaw.map((e) => ({ ...e, name: e.name ?? `${e.firstname ?? e.firstName ?? ""} ${e.lastname ?? e.lastName ?? ""}`.trim() }))
+      : employeesRaw;
+
+    // Normalize locations: AZ returns { id, name } with no agencyNumber/locationCode
+    const locations = Array.isArray(locationsRaw)
+      ? locationsRaw.map((loc) => ({
+          ...loc,
+          agencyNumber: loc.agencyNumber ?? loc.locationCode ?? String(loc.id ?? ""),
+          locationCode: loc.locationCode ?? String(loc.id ?? ""),
+        }))
+      : locationsRaw;
 
     // Load existing saved config for pre-population
     const db = getSupabase();
