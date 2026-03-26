@@ -34,20 +34,34 @@ router.get("/status", requireAuth, async (req, res) => {
 	if (!tokens || !tokens.access_token) {
 		return res.json({ connected: false });
 	}
-	const nowSec = Math.floor(Date.now() / 1000);
-	const expireTimeSec = typeof tokens.expire_time === "number" ? tokens.expire_time : null;
-	// RC SDK stores expire_time in milliseconds; normalise.
-	const normalizedExpireSec =
-		typeof expireTimeSec === "number" && expireTimeSec > 1_000_000_000_0
-			? Math.floor(expireTimeSec / 1000)
-			: expireTimeSec;
+	// Connected = refresh token is still valid. The access token expires every ~60min
+	// but the SDK auto-refreshes it, so checking access token expiry gives false
+	// "Disconnected" after a server restart. Refresh token expiry (7-day window,
+	// rolling) is the real indicator of whether reconnect is needed.
+	const nowMs = Date.now();
+	const rtExpireMs = typeof tokens.refresh_token_expire_time === "number"
+		? tokens.refresh_token_expire_time
+		: null;
 
-	const connected =
-		typeof normalizedExpireSec === "number" && normalizedExpireSec > nowSec + 60;
+	// Normalise: if stored in seconds (< year 2100 in ms), convert to ms.
+	const normalizedRtExpireMs = rtExpireMs !== null && rtExpireMs < 4_000_000_000
+		? rtExpireMs * 1000
+		: rtExpireMs;
+
+	// Fall back to access token check if refresh_token_expire_time not stored yet.
+	let connected;
+	if (normalizedRtExpireMs !== null) {
+		connected = normalizedRtExpireMs > nowMs + 60_000;
+	} else {
+		const atExpireMs = typeof tokens.expire_time === "number"
+			? (tokens.expire_time > 1_000_000_000_0 ? tokens.expire_time : tokens.expire_time * 1000)
+			: null;
+		connected = atExpireMs !== null && atExpireMs > nowMs + 60_000;
+	}
 
 	const payload = { connected };
 	if (process.env.NODE_ENV === "development") {
-		payload._debug = { nowSec, rawExpireTime: tokens.expire_time, normalizedExpireSec };
+		payload._debug = { nowMs, refresh_token_expire_time: tokens.refresh_token_expire_time, normalizedRtExpireMs };
 	}
 	res.json(payload);
 });
