@@ -1,5 +1,7 @@
 // Authentication utility functions
-import { supabase } from "./supabase.js";
+import { supabaseAdmin, supabase as supabaseAnon } from "./supabase.js";
+// Use service role client to bypass RLS on the users table.
+const supabase = supabaseAdmin || supabaseAnon;
 
 /**
  * Helper function to get user data from token (handles both custom and Supabase Auth tokens)
