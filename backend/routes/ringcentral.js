@@ -127,17 +127,28 @@ router.get("/callback", async (req, res) => {
 	const orgId = state || "default";
 	console.log(`[RingCentral] Callback for org: ${orgId}, exchanging code...`);
 
-	const platform = sdk.platform();
+	const clientId = process.env.RINGCENTRAL_CLIENT_ID;
+	const clientSecret = process.env.RINGCENTRAL_CLIENT_SECRET;
+	const serverUrl = process.env.RINGCENTRAL_SERVER_URL || "https://platform.ringcentral.com";
 	try {
-		await platform.login({ code, redirectUri });
-		const authData = await platform.auth().data();
+		// Bypass the RC SDK for token exchange — SDK doesn't reliably forward redirect_uri.
+		// Call the token endpoint directly so we control exactly what's sent.
+		const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+		const tokenRes = await fetch(`${serverUrl}/restapi/oauth/token`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Authorization": `Basic ${basicAuth}`,
+			},
+			body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: redirectUri }).toString(),
+		});
+		const tokenData = await tokenRes.json();
+		if (!tokenRes.ok) throw new Error(tokenData.error_description || "Token exchange failed");
 		await setRingCentralTokens(orgId, {
-			access_token: authData.access_token,
-			refresh_token: authData.refresh_token,
-			expire_time: authData.expire_time,
-			expires_in: authData.expires_in,
-			refresh_token_expire_time: authData.refresh_token_expire_time,
-			refresh_token_expires_in: authData.refresh_token_expires_in,
+			access_token: tokenData.access_token,
+			refresh_token: tokenData.refresh_token,
+			expires_in: tokenData.expires_in,
+			refresh_token_expires_in: tokenData.refresh_token_expires_in,
 		});
 		console.log("[RingCentral] Tokens stored for org:", orgId);
 
