@@ -146,7 +146,10 @@ export default function AgencyZoomLeadDetailPage() {
 			setLoading(true);
 			setError(null);
 			try {
-				const res = await fetch(`${config.apiUrl}/api/agencyzoom/leads/${id}`);
+				const token = getAuthToken();
+			const res = await fetch(`${config.apiUrl}/api/agencyzoom/leads/${id}`, {
+				headers: token ? { Authorization: `Bearer ${token}` } : {},
+			});
 				if (!res.ok) {
 					const j = await res.json().catch(() => ({}));
 					throw new Error(j.error || `HTTP ${res.status}`);

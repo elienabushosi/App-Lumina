@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { config } from "@/lib/config";
+import { getAuthToken } from "@/lib/auth";
 import {
 	Table,
 	TableBody,
@@ -67,9 +68,13 @@ export default function AgencyZoomLeadsPage() {
 		setLoading(true);
 		setError(null);
 		try {
+			const token = getAuthToken();
 			const res = await fetch(`${config.apiUrl}/api/agencyzoom/leads/list`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: {
+					"Content-Type": "application/json",
+					...(token ? { Authorization: `Bearer ${token}` } : {}),
+				},
 				body: JSON.stringify({ pageSize: 50, sort: "lastEnterStageDate", order: "desc" }),
 			});
 			if (!res.ok) {

@@ -151,8 +151,24 @@ function ResearchAgentInner() {
 		const parts = [a, c, s, z].filter(Boolean);
 		if (parts.length > 0) {
 			setAddress(parts.join(", "));
-			if (a && c && s)
-				setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
+			if (a && c && s) {
+				// Geocode to normalize the address (same as autocomplete path) so ATTOM gets clean components
+				const rawAddress = [a, c, s, z].filter(Boolean).join(", ");
+				fetch(`${config.apiUrl}/api/property/geocode?${new URLSearchParams({ address: rawAddress })}`)
+					.then((res) => res.ok ? res.json() : null)
+					.then((json) => {
+						if (json?.address && json?.city && json?.state) {
+							setAddress(json.formattedAddress ?? rawAddress);
+							setAddrParts({ address: json.address, city: json.city, state: json.state, zip: json.zip ?? z ?? "" });
+						} else {
+							// Geocode failed — fall back to raw params so user can still attempt research
+							setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
+						}
+					})
+					.catch(() => {
+						setAddrParts({ address: a, city: c, state: s, zip: z ?? "" });
+					});
+			}
 		}
 		if (ln) setLeadName(ln);
 		if (lp) setLeadPhone(lp);
