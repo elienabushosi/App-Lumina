@@ -19,7 +19,18 @@ import triggerRoutes from "./src/routes/triggers.js";
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-app.use(cors());
+app.use(cors({
+	origin: true,
+	credentials: true,
+	methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+	allowedHeaders: ["Content-Type", "Authorization"],
+}));
+app.options("*", cors({
+	origin: true,
+	credentials: true,
+	methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+	allowedHeaders: ["Content-Type", "Authorization"],
+}));
 
 // Stripe webhook needs raw body for signature verification
 // Apply raw body parser only to webhook endpoint, before JSON parser
