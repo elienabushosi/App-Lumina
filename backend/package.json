@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server.js",
-    "start": "NODE_ENV=production node server.js",
-    "prod": "NODE_ENV=production node server.js",
+    "start": "NODE_ENV=production tsx server.js",
+    "prod": "NODE_ENV=production tsx server.js",
     "dev:proposals": "NODE_ENV=development tsx watch src/server.ts",
     "build:proposals": "tsc",
     "test:e2e": "NODE_ENV=development tsx src/test-e2e.ts"
@@ -23,12 +23,12 @@
     "resend": "^4.0.0",
     "stripe": "^17.3.1",
     "winston": "^3.17.0",
+    "tsx": "^4.19.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }
 }
