@@ -129,7 +129,7 @@ router.get("/callback", async (req, res) => {
 
 	const platform = sdk.platform();
 	try {
-		await platform.login({ code, redirect_uri: redirectUri });
+		await platform.login({ code, redirectUri });
 		const authData = await platform.auth().data();
 		await setRingCentralTokens(orgId, {
 			access_token: authData.access_token,
