@@ -47,8 +47,8 @@ async function getOrganizationSubscriptionStatus(organizationId) {
 		.limit(1)
 		.single();
 
-	if (error && error.code !== "PGRST116") {
-		// PGRST116 = no rows returned
+	if (error && error.code !== "PGRST116" && error.code !== "PGRST205") {
+		// PGRST116 = no rows returned, PGRST205 = table not found (billing not set up yet)
 		console.error("Error fetching subscription:", error);
 		return null;
 	}
@@ -123,9 +123,9 @@ router.get("/subscription-status", async (req, res) => {
 		);
 
 		if (!subscriptionStatus) {
-			return res.status(500).json({
-				status: "error",
-				message: "Failed to fetch subscription status",
+			return res.json({
+				status: "success",
+				subscription: { plan: "free", status: "not_configured" },
 			});
 		}
 
