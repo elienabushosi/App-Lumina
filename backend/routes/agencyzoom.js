@@ -8,6 +8,8 @@ import {
 } from "../lib/agencyzoom.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getSupabase } from "../lib/supabase.js";
+import { loadSchema, hasNewFields, discoverSchema } from "../lib/agencyzoom-schema-discovery.js";
+import { normalizeLeads } from "../lib/agencyzoom-normalizer.js";
 
 const router = express.Router();
 const DEFAULT_ORG_ID = "default";
@@ -193,10 +195,116 @@ router.post("/config", requireAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // Leads
 // ---------------------------------------------------------------------------
+
+// GET /leads — read stored leads from Supabase, zero AZ calls
+router.get("/leads", requireAuth, async (req, res) => {
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
+  try {
+    const db = getSupabase();
+    const { data, error } = await db
+      .from("agencyzoom_leads")
+      .select("az_lead_id, data, pulled_at, updated_at")
+      .eq("id_organization", orgId)
+      .order("updated_at", { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+
+    const leads = (data || []).map((row) => row.data);
+    const lastPulled = data?.[0]?.pulled_at ?? null;
+    return res.json({ leads, lastPulled, total: leads.length });
+  } catch (err) {
+    console.error("[AgencyZoom] GET /leads error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /leads/pull — fetch from AZ, run schema discovery if needed, upsert to DB
+router.post("/leads/pull", requireAuth, async (req, res) => {
+  const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
+  try {
+    let jwt;
+    try {
+      jwt = await getAgencyZoomJwtForUser(req.user.IdUser);
+    } catch {
+      return res.status(403).json({ error: "not_connected" });
+    }
+
+    const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/list`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ page: 0, pageSize: 100, sort: "createDate", order: "desc" }),
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+      console.error("[AgencyZoom] leads/pull AZ fetch failed:", response.status, text);
+      return res.status(response.status).json({ error: `AgencyZoom error: ${response.status} — ${text.slice(0, 200)}` });
+    }
+
+    const json = JSON.parse(text);
+    const rawItems = json.data ?? json.leads ?? json;
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.json({ pulled: 0, message: "No leads found in AgencyZoom." });
+    }
+
+    console.log(`[AgencyZoom] leads/pull: fetched ${rawItems.length} leads for org: ${orgId}`);
+
+    // Schema discovery — run Claude if new fields detected.
+    const rawFieldNames = Object.keys(rawItems[0]);
+    let schema = await loadSchema(orgId);
+
+    if (!schema || hasNewFields(rawFieldNames, schema.raw_fields)) {
+      try {
+        const discovered = await discoverSchema(orgId, rawItems[0]);
+        schema = discovered;
+      } catch (discoveryErr) {
+        console.error("[AZ Schema] Discovery failed during pull:", discoveryErr.message);
+        // Continue without normalization — store raw leads
+        schema = { field_map: {} };
+      }
+    }
+
+    // Normalize and upsert into Supabase.
+    const normalizedItems = normalizeLeads(rawItems, schema.field_map);
+    const db = getSupabase();
+    const pulledAt = new Date().toISOString();
+
+    const rows = normalizedItems.map((lead, i) => ({
+      az_lead_id: String(lead.id || rawItems[i]?.id || i),
+      id_organization: orgId,
+      data: lead,
+      raw_data: rawItems[i] ?? {},
+      pulled_at: pulledAt,
+      updated_at: pulledAt,
+    }));
+
+    const { error: upsertError } = await db
+      .from("agencyzoom_leads")
+      .upsert(rows, { onConflict: "id_organization,az_lead_id" });
+
+    if (upsertError) throw upsertError;
+
+    console.log(`[AgencyZoom] leads/pull: upserted ${rows.length} leads for org: ${orgId}`);
+    return res.json({ pulled: rows.length, lastPulled: pulledAt });
+  } catch (err) {
+    console.error("[AgencyZoom] leads/pull error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /leads/list — kept for backwards compatibility, now deprecated in favour of GET /leads + POST /leads/pull
 router.post("/leads/list", requireAuth, async (req, res) => {
   const orgId = req.user.IdOrganization ?? DEFAULT_ORG_ID;
   try {
-    const jwt = await getAgencyZoomJwtForUser(req.user.IdUser);
+    let jwt;
+    try {
+      jwt = await getAgencyZoomJwtForUser(req.user.IdUser);
+    } catch {
+      return res.status(403).json({ error: "not_connected" });
+    }
     const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/list`;
 
     const body = {
@@ -222,11 +330,31 @@ router.post("/leads/list", requireAuth, async (req, res) => {
     }
 
     const json = JSON.parse(text);
-    const items = json.data ?? json.leads ?? json;
-    if (Array.isArray(items) && items.length > 0) {
-      console.log("[AgencyZoom] leads/list sample keys:", Object.keys(items[0]));
+    const rawItems = json.data ?? json.leads ?? json;
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.json({ data: [], _normalized: true });
     }
-    return res.json(json);
+
+    console.log("[AgencyZoom] leads/list sample keys:", Object.keys(rawItems[0]));
+
+    // Schema discovery — run Claude if this org has new fields we haven't seen before.
+    const rawFieldNames = Object.keys(rawItems[0]);
+    let schema = await loadSchema(orgId);
+
+    if (!schema || hasNewFields(rawFieldNames, schema.raw_fields)) {
+      try {
+        const { field_map, display_config, downstream_map } = await discoverSchema(orgId, rawItems[0]);
+        schema = { field_map, display_config, downstream_map };
+      } catch (discoveryErr) {
+        console.error("[AZ Schema] Discovery failed, returning raw leads:", discoveryErr.message);
+        return res.json(json);
+      }
+    }
+
+    // Normalize leads using the stored field map.
+    const normalizedItems = normalizeLeads(rawItems, schema.field_map);
+    return res.json({ data: normalizedItems, _normalized: true });
   } catch (err) {
     console.error("[AgencyZoom] leads/list error:", err.message);
     return res.status(500).json({ error: err.message });
