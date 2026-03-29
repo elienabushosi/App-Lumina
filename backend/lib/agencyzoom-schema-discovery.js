@@ -10,10 +10,9 @@
  *   streetAddress, city, state, zip, lastStageDate, assignedTo, locationCode, workflowId
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import { getSupabase } from "./supabase.js";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY_SCHEMA });
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 // Lumina's standard schema — these are the only field names the frontend
 // and downstream agents ever work with.
@@ -101,11 +100,26 @@ Rules:
 
 Return ONLY valid JSON. No explanation, no markdown.`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2048,
-    messages: [{ role: "user", content: prompt }],
+  const response = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.ANTHROPIC_API_KEY_SCHEMA,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: prompt }],
+    }),
   });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Anthropic API error ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const message = await response.json();
 
   let result;
   try {
