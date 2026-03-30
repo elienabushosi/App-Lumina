@@ -169,6 +169,13 @@ router.get("/callback", async (req, res) => {
 		const webhookUrl = process.env.RINGCENTRAL_WEBHOOK_URL;
 		if (webhookUrl) {
 			try {
+				const platform = sdk.platform();
+				await platform.auth().setData({
+					access_token: tokenData.access_token,
+					refresh_token: tokenData.refresh_token,
+					expires_in: tokenData.expires_in,
+					refresh_token_expires_in: tokenData.refresh_token_expires_in,
+				});
 				const subRes = await platform.post("/restapi/v1.0/subscription", {
 					eventFilters: [TELEPHONY_SESSIONS_FILTER],
 					deliveryMode: { transportType: "WebHook", address: webhookUrl },
