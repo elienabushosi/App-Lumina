@@ -109,14 +109,16 @@ router.get("/config/all", requireAuth, async (req, res) => {
       } catch { return null; }
     };
 
-    const [customFieldsRaw, pipelinesAndStages, employeesRaw, leadSources, locationsRaw] =
-      await Promise.all([
-        fetchJson("/v1/api/custom-fields"),
-        fetchJson("/v1/api/pipelines-and-stages"),
-        fetchJson("/v1/api/employees"),
-        fetchJson("/v1/api/lead-sources"),
-        fetchJson("/v1/api/locations"),
-      ]);
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+    const customFieldsRaw = await fetchJson("/v1/api/custom-fields");
+    await delay(500);
+    const pipelinesAndStages = await fetchJson("/v1/api/pipelines-and-stages");
+    await delay(500);
+    const employeesRaw = await fetchJson("/v1/api/employees");
+    await delay(500);
+    const leadSources = await fetchJson("/v1/api/lead-sources");
+    await delay(500);
+    const locationsRaw = await fetchJson("/v1/api/locations");
 
     // Normalize custom fields: AZ returns { fieldName, label } but frontend expects fieldLabel
     const customFields = Array.isArray(customFieldsRaw)

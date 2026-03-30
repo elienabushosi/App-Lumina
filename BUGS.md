@@ -13,25 +13,14 @@ Users cannot sever their AgencyZoom connection from within Lumina. Need a Discon
 Could not reproduce in production. Credentials are saving correctly for tested accounts.
 
 ### B16 — Investigate AgencyZoom leads/list field mapping vs client-side error ✅ Resolved 2026-03-29
-Railway logs show the AZ leads/list endpoint successfully returning leads with the correct field names (all lowercase: `firstname`, `lastname`, `leadSourceName`, etc.). Jake confirmed the fields look correct. However the frontend still throws a client-side error when clicking Leads. Need to determine if the field mapping mismatch between what AZ returns and what the frontend expects is the cause, or if B14 (credentials not persisted) is the only root cause. Not a red log — just needs investigation.
+Root cause: `statusColor()` called `.toLowerCase()` on AZ's `status` field which is returned as an integer, not a string — `TypeError: e.toLowerCase is not a function` crashed the leads page in production.
 
-AZ confirmed field names: `id`, `firstname`, `lastname`, `email`, `phone`, `streetAddress`, `city`, `state`, `zip`, `status`, `leadSourceName`, `createDate`, `enterStageDate`, `assignedTo`, `leadType`, etc.
+Fix: replaced live-fetch leads model with pull-based DB storage. `GET /api/agencyzoom/leads` reads from `agencyzoom_leads` table (zero AZ calls on page load). `POST /api/agencyzoom/leads/pull` fetches from AZ, runs Claude field schema discovery once per org, normalizes all fields (status always coerced to string), and upserts to Supabase. Added `LeadsErrorBoundary` to catch any future render crashes gracefully. Confirmed working in production — leads pulling and displaying correctly for Jake.
 
-### B17 — AgencyZoom API rate limiting (429 Too Many Requests)
-The `/config/all` endpoint makes parallel calls to multiple AZ API endpoints (pipelines-and-stages, custom-fields, locations, etc.) and is hitting 429 rate limits.
+### B17 — AgencyZoom API rate limiting (429 Too Many Requests) ✅ Resolved 2026-03-29
+Root cause: `/config/all` was firing 5 parallel AZ API calls via `Promise.all` — consuming 1/6 of the 30 calls/minute rate limit in a single click.
 
-**AZ rate limit confirmed (from their OpenAPI docs, as of 2023-11-21):** 30 calls/minute during the day, 60 calls/minute from 10PM–4AM CT.
-
-**Root cause:** `/config/all` fires 5 parallel calls in a single click = 1/6 of the entire minute budget gone instantly. If the wizard retries (current behaviour adds 1 retry on 429), that's 10 calls from one click.
-
-**Fix:** Serialize the 5 `/config/all` calls with ~300ms delay between each instead of `Promise.all`. 5 sequential calls ≈ 1.5s total — imperceptible to the user and spreads load across the minute.
-
-Sample log:
-```
-[AgencyZoom] /config/all fetch failed: /v1/api/pipelines-and-stages → 429 Too Many Requests
-[AgencyZoom] /config/all fetch failed: /v1/api/custom-fields → 429 Too Many Requests
-[AgencyZoom] /config/all fetch failed: /v1/api/locations → 429 Too Many Requests
-```
+Fix: replaced `Promise.all` with sequential calls and 500ms delay between each. Total load time ~2s — imperceptible to users, spreads calls across the rate limit window. Confirmed working locally.
 
 ### B18 — Investigate AZ field differences between Jake and CG when posting leads from RC calls
 CG Insurance's AZ account returns the same field schema as Jake's. Need to verify whether the lead creation payload (POST from RC call extraction) maps correctly to both accounts, and whether any required fields differ between orgs (e.g. `locationCode`, `workflowId`, `assignedTo`, `csrId`). A mismatch could silently drop or misroute leads when RC calls are pushed to AZ.
@@ -39,11 +28,18 @@ CG Insurance's AZ account returns the same field schema as Jake's. Need to verif
 CG's confirmed AZ field list:
 `id`, `firstname`, `lastname`, `middlename`, `leadType`, `email`, `phone`, `secondaryEmail`, `secondaryPhone`, `streetAddress`, `city`, `state`, `country`, `zip`, `comments`, `status`, `contactDate`, `soldDate`, `leadSourceId`, `leadSourceName`, `xDate`, `quoteDate`, `createDate`, `premium`, `quoted`, `assignedTo`, `assignToFirstname`, `assignToLastname`, `csrId`, `csrFirstname`, `csrLastname`, `creditToFirstname`, `creditToLastname`, `taskCount`, `contactFirstName`, `contactLastName`, `locationCode`, `locationName`, `departmentCode`, `departmentName`, `groupCode`, `groupName`, `workflowId`, `workflowName`, `workflowStageId`, `workflowStageName`, `lastActivityDate`, `enterStageDate`, `tagNames`, `convertedHouseholdId`, `nextExpirationDate`, `externalSystem`, `externalId`
 
-### B19 — AZ config wizard spinner never resolves for CG Insurance
-When CG clicks "Configure AgencyZoom" in Settings, the button spins indefinitely and the wizard never displays the lead options (pipeline, stage, lead source, etc.). Likely related to B17 (429 rate limiting on the /config/all endpoint hitting AZ API too aggressively). The config fetch fails silently and the UI never transitions out of the loading state.
+### B19 — AZ config wizard spinner never resolves for CG Insurance ✅ Resolved 2026-03-29
+Root cause: B17 rate limiting caused `/config/all` to fail silently — the UI never exited the loading state on error.
+
+Fix: B17 serialization fix prevents the 429s. Additionally added a clear error message when the config load fails: "Could not load AgencyZoom config. Try again. If the issue persists, try reconnecting with an admin account." Users are no longer stuck on an infinite spinner.
 
 ### B20 — Investigate whether AZ restricts OAuth to admin accounts only
 CG is experiencing AZ login/connection issues that Jake (likely the account admin) does not. Need to check AgencyZoom's API documentation to determine if OAuth access is restricted to admin-level accounts, or if there are permission tiers that affect what a non-admin user can do via the API. If true, Lumina may need to use a single org-level AZ connection (admin's credentials) rather than per-user connections.
+
+### B24 — RingCentral webhook subscription fails after OAuth connect
+After successful OAuth, the backend attempts to create a RC webhook subscription but throws `ReferenceError: platform is not defined`. The subscription is never created, meaning Lumina won't receive real-time call events via webhook — it falls back to the call log poller only.
+
+Log: `🔴 [RingCentral] Subscription create error: platform is not defined`
 
 ---
 
@@ -52,11 +48,31 @@ CG is experiencing AZ login/connection issues that Jake (likely the account admi
 ### B1 — RingCentral connection fails outside incognito mode
 RingCentral OAuth connect works in incognito but fails in a normal browser session. Likely a stale cookie or cached token conflict. Investigate what differs between incognito and normal mode.
 
-### B2 — RingCentral connection failure for CG Insurance
-Cintya Garza (CG Insurance) could not authorize RingCentral. Check Railway logs for her OAuth attempt and identify the specific error.
+### B2 — RingCentral connection failure for CG Insurance + PSTN call error
+Cintya Garza (CG Insurance) could not authorize RingCentral.
 
-### B8 — PSTN call error in RingCentral
-An error message referencing "PSTN call" appears in RingCentral. Determine what it means and whether it affects call recording/transcription in Lumina.
+**What happened:**
+1. CG reached the RC OAuth login page (`login.ringcentral.com/?responseType=code&clientId=eL07C8712qLbOt1tK531tr&brandId=12100&state=c9511880-fc7d-4cd8-9e83-96cc8b931b6b...`)
+2. A RingCentral notification appeared: *"You cannot use this device to make PSTN calls including Emergency Calls since no Digital Line is associated."*
+3. She clicked "Ok, got it" — page started loading and never completed. OAuth callback never returned to Lumina.
+
+**Railway logs at time of attempt:**
+```
+PGRST205: Could not find the table 'public.subscriptions' in the schema cache
+Hint: Perhaps you meant the table 'public.rc_user_extensions'
+```
+Note: the `subscriptions` error is a pre-existing noise log (B15) — not the cause of the RC failure.
+
+**What we know:**
+- The PSTN notification is a RingCentral account configuration issue — CG's device has no Digital Line associated in their RC account. This is not a Lumina code problem.
+- The notification interrupting the OAuth flow may have prevented the callback from completing, leaving the page stuck loading.
+
+**Open questions:**
+- Does the PSTN notification block the OAuth flow in RC, or does it just display as a warning that can be dismissed?
+- Does CG have a Digital Line assigned in their RingCentral admin console?
+- Is this a CG account setup issue that needs to be resolved on the RC side before Lumina can connect?
+
+**Next step:** Ask CG to check their RingCentral admin console and verify a Digital Line is assigned to their account. If not, that needs to be set up in RC before OAuth will work.
 
 ### B9 — Ricochet phone system not integrated
 Some agents use Ricochet instead of RingCentral. Need to determine if Ricochet allows third-party access and whether Lumina can support it.

@@ -118,7 +118,15 @@ router.get("/callback", async (req, res) => {
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=not_configured`);
 	}
 
-	const { code, state } = req.query;
+	const { code, state, error: rcError, error_description: rcErrorDesc } = req.query;
+
+	// RC sends ?error=... if the user denied access or permissions are insufficient
+	if (rcError) {
+		const msg = rcErrorDesc || rcError;
+		console.error(`[RingCentral] OAuth error from RC: ${rcError} — ${rcErrorDesc}`);
+		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=${encodeURIComponent(msg)}`);
+	}
+
 	if (!code) {
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=no_code`);
 	}

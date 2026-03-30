@@ -122,6 +122,7 @@ const [isRequestingCode, setIsRequestingCode] = useState(false);
 	const [ringCentralConnected, setRingCentralConnected] = useState<
 		boolean | null
 	>(null);
+	const [rcConnecting, setRcConnecting] = useState(false);
 	const [agencyZoomConnected, setAgencyZoomConnected] = useState<
 		boolean | null
 	>(null);
@@ -199,12 +200,17 @@ const [isRequestingCode, setIsRequestingCode] = useState(false);
 	useEffect(() => {
 		const ringcentral = searchParams.get("ringcentral");
 		if (ringcentral === "connected") {
+			setRcConnecting(false);
 			setSuccess("RingCentral connected successfully.");
 			setRingCentralConnected(true);
 			window.history.replaceState({}, "", "/settings");
 		} else if (ringcentral === "error") {
+			setRcConnecting(false);
 			const msg = searchParams.get("message") || "Connection failed.";
-			setError(`RingCentral: ${msg}`);
+			const friendlyMsg = msg === "no_code" || msg === "exchange_failed"
+				? "RingCentral authorization did not complete. Ask your RC admin to enable Third Party App Access on your account and ensure a Digital Line is assigned, then try again."
+				: `RingCentral: ${msg}`;
+			setError(friendlyMsg);
 			window.history.replaceState({}, "", "/settings");
 		}
 	}, [searchParams]);
@@ -492,7 +498,14 @@ useEffect(() => {
 				headers: token ? { Authorization: `Bearer ${token}` } : {},
 			});
 			const data = await res.json();
-			if (data.url) window.location.href = data.url;
+			if (data.url) {
+				setRcConnecting(true);
+				setTimeout(() => {
+					setRcConnecting(false);
+					setError("RingCentral connection timed out. If you're stuck on a screen in RingCentral, your account may need additional setup — ask your RC admin to enable Third Party App Access and ensure a Digital Line is assigned to your account. Then try connecting again.");
+				}, 45000);
+				window.location.href = data.url;
+			}
 		} catch {
 			setError("Failed to initiate RingCentral connection.");
 		}
@@ -613,7 +626,7 @@ useEffect(() => {
 			const res = await fetch(`${config.apiUrl}/api/agencyzoom/config/all`, {
 				headers: token ? { Authorization: `Bearer ${token}` } : {},
 			});
-			if (!res.ok) throw new Error("Failed to load AgencyZoom config");
+			if (!res.ok) throw new Error("Could not load AgencyZoom config. Try again. If the issue persists, try reconnecting with an admin account — you can request admin access from your AgencyZoom account owner, or ask them to configure your organization's settings directly in Lumina.");
 			const data = await res.json();
 
 			// Normalize custom fields — filter to entityType "lead" if present
