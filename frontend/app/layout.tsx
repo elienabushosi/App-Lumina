@@ -20,8 +20,8 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-	title: "Lumnia - Insurance Quote Automation",
-	description: "Lumnia automates insurance quotes",
+	title: "Lumina - Insurance Quote Automation",
+	description: "Lumina automates insurance quotes",
 	generator: "v0.app",
 	icons: {
 		icon: "/favicon-32x32.png",

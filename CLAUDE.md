@@ -273,12 +273,76 @@ The proposal pipeline backend is fully built and smoke-tested end-to-end:
 - ✅ Dev bypass `Role` fixed: `"admin"` → `"Owner"` in both `auth-utils.js` and `layout.tsx` so `isOwner`-gated UI renders in dev
 - ✅ AgencyZoom multi-tenant (Task #9): `agencyzoom_config` table (migration 013), all AZ routes now use `requireAuth` + `req.user.IdOrganization`. New `GET /config/all` (parallel discovery + savedConfig). New `POST /config` (upsert). `agencyzoom-leads.js` DB-first with env var fallback. Settings page has full state + handlers for config wizard (fuzzyMatchField, fetchAzConfig, handleSaveAzConfig) — **JSX wizard UI not yet rendered** (see next item)
 - ✅ Farmers APEX Login card added to Settings with salesforce-farmers.png header image
+- ✅ AZ config wizard JSX rendered in Settings: Pipeline, Stage (filtered), Lead Source, Primary Producer, Primary CSR, Location/Agency Number, 5 custom field dropdowns (Roof Year, Roof Type, Flooring Types, Bathrooms, Occupation Degree), Save button. Owner-only "Configure AgencyZoom" button.
+- ✅ Per-user AgencyZoom credentials (Task #9 complete): `agencyzoom_user_credentials` table (migration 014). Each Lumina user connects their own AZ account. All AZ routes use per-user JWT (`req.user.IdUser`). `createAgencyZoomLeadForCall` requires `pushingUserId` (no org-level fallback). Settings shows "Connected as {email}". Lead push confirmed working end-to-end.
 
 **Remaining:**
-1. **AZ config wizard JSX** — replace the simple "Connected" div in Settings (lines 1087–1091 of `settings/page.tsx`) with the config wizard dropdowns. State + handlers are already wired. Needs: Pipeline dropdown, Stage dropdown (filtered by selected pipeline), Lead Source dropdown, Primary Producer dropdown, Primary CSR dropdown, Location/Agency Number dropdown, 5 custom field dropdowns (Roof Year, Roof Type, Flooring Types, Bathrooms, Occupation Degree), Save button. Owner-only "Configure AgencyZoom" button that calls `fetchAzConfig()` to load options.
 2. Navigate within APEX to Alta and 360 — these are tools inside Salesforce, not separate URLs. Jake Ridley's + CG Insurance credentials are in `backend/.env`. Login works. Gemini needs to navigate within the SF UI to reach Alta/360 and fill the forms.
-3. **Research report persistence Phase 2 (after UI validated):** Replace localStorage with Supabase. Write migration based on confirmed `researchReport` shape. Swap localStorage reads/writes for `POST /api/research-reports` (on CAD success) and `PATCH /api/research-reports/:id` (on maps + realtor success). Upsert on `agency_zoom_lead_id` (one row per lead, always latest).
+3. ✅ **Research report persistence Phase 2:** localStorage replaced with Supabase. `POST /api/research-reports` on CAD, `PATCH` on maps + realtor. Lead detail page reads from API. No localStorage usage remains.
 4. Session saved as `sessions/jake-ridley.json` after first successful MFA — subsequent runs skip login for 30 days
+
+---
+
+## Deployment Plan (2026-03-27)
+
+### Approach
+Deploy everything except browser automation first so Jake Ridley and CG Insurance can test auth, RC, AZ, and the research agent. Add Browserbase + Alta/360 browser automation separately after.
+
+### Phase 1 — Deploy now (no browser automation)
+Customers can test: sign up, login, RingCentral, AgencyZoom, research agent.
+
+1. ◻ **Deploy frontend → Vercel**
+   - Connect GitHub repo to Vercel
+   - Set `NEXT_PUBLIC_API_URL` = Railway backend URL
+   - Set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
+
+2. ◻ **Deploy backend → Railway**
+   - Connect GitHub repo to Railway
+   - Add Redis add-on (one click — auto-injects `REDIS_URL`)
+   - Set all env vars (see list below)
+
+3. ◻ **Wire RingCentral webhook**
+   - Paste Railway backend URL into RC developer console as webhook endpoint
+   - Format: `https://<railway-url>/api/ringcentral/webhook`
+
+4. ◻ **Smoke test**
+   - Sign up, log in
+   - Connect RC, connect AZ
+   - Run research agent on a test address
+   - Push a lead to AZ
+
+### Phase 2 — Browser automation (after Phase 1 validated)
+5. ◻ **Integrate Browserbase**
+   - Sign up for Browserbase Developer plan ($20/mo)
+   - Swap `chromium.launch()` for Browserbase CDP connection in `browser.ts`
+   - Wire embeddable live-view iframe into `/research-browser-run` (replaces status feed)
+   - Session persistence via Browserbase Contexts API (replaces `sessions/{userId}.json`)
+6. ◻ **Alta/360 navigation** — Gemini navigates within Salesforce SF UI to reach Alta and 360 forms and fill them
+
+### Backend env vars needed on Railway
+```
+NODE_ENV=production
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_ANON_KEY
+RINGCENTRAL_CLIENT_ID
+RINGCENTRAL_CLIENT_SECRET
+RINGCENTRAL_SERVER_URL
+AGENCYZOOM_BASE_URL
+ANTHROPIC_API_KEY
+DEEPGRAM_API_KEY
+ATTOM_API_KEY
+GEMINI_API_KEY
+GOOGLE_MAPS_API_KEY
+REDIS_URL                  ← auto-injected by Railway Redis add-on
+```
+
+### Frontend env vars needed on Vercel
+```
+NEXT_PUBLIC_API_URL        ← Railway backend URL
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+NEXT_PUBLIC_BYPASS_AUTH=0  ← must be 0 in production
+```
 
 **`researchReport` shape (confirmed, drives Phase 2 DB schema):**
 ```typescript
@@ -612,7 +676,7 @@ The app uses `NEXT_PUBLIC_BYPASS_AUTH=1` for dev — the workspace layout sets `
 - Calls pages converted to client components — auth token sent correctly, calls visible.
 
 **What is NOT wired yet:**
-- AgencyZoom routes still hardcode `id_organization: "default"` — being fixed in Task #9.
+- AgencyZoom routes fully migrated to per-user credentials (Task #9 complete, 2026-03-26).
 - No Stripe wiring yet. End state: per-seat billing where each enabled user in an org = 1 seat on the org's subscription.
 
 ### Ownership Model
@@ -689,7 +753,7 @@ AZ actions (create lead, update record) will be taken as the authenticated Lumin
 8. ✅ **RC token expiration fixed** — singleton poller platform, `refreshSuccess`/`refreshError` events, migration 010 (`refresh_token_expire_time` column).
 9. ✅ **RC multi-tenant OAuth per org (Task #10)** — per-org pollers, `STATE_KEY = "default"` replaced, `/status` + `/auth` require auth
 10. ✅ **RC extension → Lumina user mapping (Task #11)** — `rc_user_extensions` table (migration 011), Settings UI, `handled_by_user_id` on calls, "My calls" filter
-11. ◻ **AZ multi-user auth model (Task #9)** — deferred until RC tasks complete
+11. ✅ **AZ per-user auth model (Task #9)** — per-user credentials table + JWT, Settings UI, lead push uses pushingUserId
 12. ◻ **Stripe wiring** — per-seat billing, deferred
 
 ---

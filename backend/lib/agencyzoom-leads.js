@@ -1,4 +1,4 @@
-import { getAgencyZoomJwtForUser } from "./agencyzoom.js";
+import { getAgencyZoomJwt } from "./agencyzoom.js";
 import { getSupabase } from "./supabase.js";
 
 const AGENCYZOOM_BASE_URL =
@@ -155,7 +155,7 @@ export async function buildLeadDataRequest(leadPayload, orgId) {
 		pipelineId: cfg.pipelineId,
 		stageId: cfg.stageId,
 		leadSourceId: cfg.leadSourceId,
-		assignTo: String(cfg.assignTo),
+		assignTo: cfg.assignTo,
 		...(cfg.csrId != null && { csrId: cfg.csrId }),
 		streetAddress: address.street || null,
 		streetAddressLine2: null,
@@ -181,10 +181,7 @@ export async function buildLeadDataRequest(leadPayload, orgId) {
  */
 export async function createAgencyZoomLeadForCall(callRow, pushingUserId) {
 	const orgId = callRow.id_organization || "default";
-	if (!pushingUserId) {
-		throw new Error("[AgencyZoom] pushingUserId is required to create a lead. Connect AgencyZoom in Settings.");
-	}
-	const jwt = await getAgencyZoomJwtForUser(pushingUserId);
+	const jwt = await getAgencyZoomJwt(orgId);
 	const body = await buildLeadDataRequest(callRow.lead_payload, orgId);
 
 	const url = `${AGENCYZOOM_BASE_URL.replace(/\/$/, "")}/v1/api/leads/create`;

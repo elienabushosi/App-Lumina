@@ -33,7 +33,10 @@ import {
 	X,
 	Check,
 	Gem,
+	ClipboardCheck,
+	Info,
 } from "lucide-react";
+import Link from "next/link";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -1010,14 +1013,26 @@ useEffect(() => {
 											<CheckCircle2 className="h-4 w-4" />
 											Connected
 										</div>
-										<Button
-											variant="outline"
-											size="sm"
-											className="text-xs border-[#E0DEDB] text-[#37322F]"
-											onClick={handleRcConnect}
-										>
-											Reconnect
-										</Button>
+										<div className="flex items-center gap-2">
+											<Link href="/ringcentral-setup">
+												<Button
+													variant="outline"
+													size="sm"
+													className="text-xs border-[#E0DEDB] text-[#37322F] flex items-center gap-1.5"
+												>
+													<ClipboardCheck className="h-3.5 w-3.5" />
+													Setup Instructions
+												</Button>
+											</Link>
+											<Button
+												variant="outline"
+												size="sm"
+												className="text-xs border-[#E0DEDB] text-[#37322F]"
+												onClick={handleRcConnect}
+											>
+												Reconnect
+											</Button>
+										</div>
 									</div>
 									{isOwner && (
 										<div className="space-y-3">
@@ -1074,12 +1089,24 @@ useEffect(() => {
 										<X className="h-4 w-4" />
 										Disconnected
 									</div>
-									<Button
-										className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
-										onClick={handleRcConnect}
-									>
-										Reconnect
-									</Button>
+									<div className="flex items-center gap-2">
+										<Link href="/ringcentral-setup">
+											<Button
+												variant="outline"
+												size="sm"
+												className="text-xs border-[#E0DEDB] text-[#37322F] flex items-center gap-1.5"
+											>
+												<ClipboardCheck className="h-3.5 w-3.5" />
+												Setup Instructions
+											</Button>
+										</Link>
+										<Button
+											className="bg-[#37322F] hover:bg-[#37322F]/90 text-white"
+											onClick={handleRcConnect}
+										>
+											Connect
+										</Button>
+									</div>
 								</div>
 							)}
 						</CardContent>
@@ -1098,8 +1125,7 @@ useEffect(() => {
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<p className="text-sm text-[#605A57]">
-								Connect your AgencyZoom account so Lumina can
-								sync leads and activity.
+								Connect your AgencyZoom <strong>owner account</strong> so Lumina can sync leads and activity. All agents in your org will use this connection.
 							</p>
 							{agencyZoomConnected ? (
 								<div className="space-y-4">
@@ -1128,6 +1154,10 @@ useEffect(() => {
 									)}
 									{azCustomFields.length > 0 && (
 										<div className="space-y-3 border-t border-[#E0DEDB] pt-3">
+											<div className="flex items-start gap-2 p-2 bg-[#F9F8F7] border border-[#E0DEDB] rounded-md text-xs text-[#605A57]">
+												<Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#A0998F]" />
+												<span>These settings are the default values Lumina uses when pushing a lead to AgencyZoom. They apply to every lead unless you adjust them directly in AgencyZoom after the lead arrives.</span>
+											</div>
 											<div>
 												<label className="block text-xs font-medium text-[#605A57] mb-1">Pipeline</label>
 												<select
@@ -1181,6 +1211,7 @@ useEffect(() => {
 														</option>
 													))}
 												</select>
+												<p className="text-xs text-[#A0998F] mt-1">You can make adjustments in AgencyZoom once leads arrive.</p>
 											</div>
 											<div>
 												<label className="block text-xs font-medium text-[#605A57] mb-1">
@@ -1299,7 +1330,7 @@ useEffect(() => {
 										</div>
 									)}
 								</div>
-							) : (
+							) : isOwner ? (
 								<>
 									{agencyZoomError && (
 										<div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
@@ -1363,6 +1394,10 @@ useEffect(() => {
 										)}
 									</Button>
 								</>
+							) : (
+								<p className="text-sm text-[#605A57]">
+									Only your org owner can connect AgencyZoom. Ask your owner to connect from their account.
+								</p>
 							)}
 						</CardContent>
 					</Card>
