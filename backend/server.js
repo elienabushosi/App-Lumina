@@ -1,4 +1,5 @@
 // Backend server entry point
+
 import express from "express";
 import cors from "cors";
 import { supabase } from "./lib/supabase.js";
