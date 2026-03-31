@@ -260,7 +260,7 @@ async function poll(orgId) {
 		const perPage = 100;
 
 		do {
-			const resp = await platform.get("/restapi/v1.0/account/~/call-log", {
+			const resp = await platform.get("/restapi/v1.0/account/~/extension/~/call-log", {
 				dateFrom: dateFrom(),
 				perPage,
 				page,
