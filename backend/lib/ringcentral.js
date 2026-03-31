@@ -27,10 +27,20 @@ export function getRingCentralSDK() {
 
 /**
  * Creates a fresh SDK instance for one org so its platform() is fully independent.
+ * Each instance gets its own isolated localStorage so token state never leaks between orgs.
+ * The RC SDK uses global.localStorage by default — all instances would share the same
+ * token cache without this isolation.
  * Call this in initPlatform — never reuse across orgs.
  * @returns {SDK | null}
  */
 export function createRingCentralSDKForOrg() {
 	if (!appCredentialsValid) return null;
-	return new SDK({ server: serverUrl, clientId, clientSecret });
+	const store = new Map();
+	const localStorage = {
+		getItem: (key) => store.get(key) ?? null,
+		setItem: (key, value) => store.set(key, value),
+		removeItem: (key) => store.delete(key),
+		keys: () => [...store.keys()],
+	};
+	return new SDK({ server: serverUrl, clientId, clientSecret, localStorage });
 }
