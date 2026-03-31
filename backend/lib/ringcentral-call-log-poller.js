@@ -7,7 +7,7 @@
  * persists rotated tokens to DB. refreshError stops that org's poller and
  * flags it for reconnect.
  */
-import { getRingCentralSDK } from "./ringcentral.js";
+import { createRingCentralSDKForOrg } from "./ringcentral.js";
 import {
 	getRingCentralTokens,
 	setRingCentralTokens,
@@ -53,7 +53,7 @@ function formatEstTime(isoString) {
  * Creates and initialises the platform for one org. Returns null if no tokens.
  */
 async function initPlatform(orgId) {
-	const sdk = getRingCentralSDK();
+	const sdk = createRingCentralSDKForOrg();
 	if (!sdk) return null;
 
 	const tokens = await getRingCentralTokens(orgId);
@@ -492,5 +492,3 @@ export function stopCallLogPoller() {
 	}
 }
 
-// Keep old STATE_KEY export for any callers that still reference it.
-export const STATE_KEY = "default";

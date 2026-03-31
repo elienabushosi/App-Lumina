@@ -131,8 +131,12 @@ router.get("/callback", async (req, res) => {
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=no_code`);
 	}
 
-	// state = orgId set during /auth; fall back to "default" for legacy redirects
-	const orgId = state || "default";
+	if (!state) {
+		console.error("[RingCentral] OAuth callback missing state (orgId) — rejecting");
+		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=missing_org_state`);
+	}
+
+	const orgId = state;
 	console.log(`[RingCentral] Callback for org: ${orgId}, exchanging code...`);
 
 	const clientId = process.env.RINGCENTRAL_CLIENT_ID;

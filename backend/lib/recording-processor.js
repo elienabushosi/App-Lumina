@@ -5,8 +5,6 @@ import { getSupabase } from "./supabase.js";
 import { getRingCentralTokens } from "./ringcentral-token-store.js";
 import { transcribeWithDiarization } from "./deepgram.js";
 
-const STATE_KEY = "default";
-
 /**
  * Download recording from RingCentral (requires auth).
  * @param {string} recordingContentUri - Full URL from call log recording.contentUri
