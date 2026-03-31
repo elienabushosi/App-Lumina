@@ -91,16 +91,18 @@ export async function setRingCentralTokens(key, data) {
 		(data.refresh_token_expires_in ? Date.now() + Number(data.refresh_token_expires_in) * 1000 : null);
 
 	let subscriptionId = data.subscription_id ?? null;
-	if (subscriptionId === null) {
+	let refreshToken = data.refresh_token ?? null;
+	if (subscriptionId === null || refreshToken === null) {
 		const existing = await getRingCentralTokens(key);
-		if (existing?.subscription_id) subscriptionId = existing.subscription_id;
+		if (existing?.subscription_id && subscriptionId === null) subscriptionId = existing.subscription_id;
+		if (existing?.refresh_token && refreshToken === null) refreshToken = existing.refresh_token;
 	}
 
 	const db = getSupabase();
 	const row = {
 		id_organization: key,
 		access_token: data.access_token,
-		refresh_token: data.refresh_token,
+		refresh_token: refreshToken,
 		expire_time: expireTime,
 		refresh_token_expire_time: refreshTokenExpireTime,
 		subscription_id: subscriptionId,
