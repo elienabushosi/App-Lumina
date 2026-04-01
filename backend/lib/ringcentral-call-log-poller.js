@@ -16,7 +16,7 @@ import {
 import { getSupabase } from "./supabase.js";
 import { processRecording } from "./recording-processor.js";
 
-const POLL_INTERVAL_MS = 60 * 60 * 1000;
+const POLL_INTERVAL_MS = 30 * 1000;
 const DATE_FROM_MINUTES = 30;
 
 /**

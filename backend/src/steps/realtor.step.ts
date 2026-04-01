@@ -89,6 +89,10 @@ export async function runRealtorStep(
 
     const json = await fetchRealtorProperty(address);
     const details = (json.propertyDetails ?? {}) as Record<string, unknown>;
+    if (!details.homeStatus) {
+      logger.warn({ proposalId, step: 'realtor', msg: 'RealtyAPI returned no property data after retries', apiMessage: json.message });
+      return null;
+    }
     const resoFacts = (details.resoFacts ?? {}) as Record<string, unknown>;
     const taxHistory = ((details.taxHistory as unknown[])?.[0] ?? {}) as Record<string, unknown>;
     const schools = (details.schools as unknown[]) ?? [];
@@ -114,7 +118,7 @@ export async function runRealtorStep(
     let interiorAnalysis: RealtorData['interiorAnalysis'] = null;
     let hasInteriorPhotos = false;
 
-    if (isForSale && photoCount > 1 && displayPhotoUrls.length > 0) {
+    if (displayPhotoUrls.length > 0) {
       hasInteriorPhotos = true;
       logger.info({ proposalId, step: 'realtor', msg: 'Running Gemini vision on interior photos', count: displayPhotoUrls.length });
       interiorAnalysis = await runGeminiVision(displayPhotoUrls);

@@ -1079,6 +1079,11 @@ function ResearchAgentInner() {
 									alt="Zillow"
 									className="h-9 w-auto object-contain"
 								/>
+								<img
+									src="/logos/Redin-Logo.png"
+									alt="Redfin"
+									className="h-6 w-auto object-contain"
+								/>
 								{!realtorLoading && (
 									<Button
 										type="button"
@@ -1420,9 +1425,7 @@ function ResearchAgentInner() {
 										</>
 									) : (
 										<p className="text-[#605A57] text-xs">
-											Property is off-market — no listing
-											photos available. Structured data
-											from Zillow records.
+											Zillow or Redfin don&apos;t have images for this house. That might mean it was never listed. Please ask the homeowner for interior details.
 										</p>
 									)}
 								</div>
