@@ -91,7 +91,9 @@ app.get("/api/test-supabase", async (req, res) => {
 app.listen(PORT, () => {
 	console.log(`🚀 Backend server running on http://localhost:${PORT}`);
 	console.log("🟢 Supabase client initialized");
-	startCallLogPoller();
+	if (process.env.RAILWAY_ENV !== 'staging') {
+		startCallLogPoller();
+	}
 	startProposalWorker();
 });
 
