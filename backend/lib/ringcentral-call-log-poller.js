@@ -78,7 +78,7 @@ async function initPlatform(orgId) {
 				expire_time: data.expire_time,
 				refresh_token_expire_time: data.refresh_token_expire_time,
 			});
-			console.log(`[CallLog:${orgId}] Persisted refreshed RC tokens`);
+			console.log(`🔸 [CallLog:${orgId}] Persisted refreshed RC tokens`);
 		} catch (e) {
 			console.error(`[CallLog:${orgId}] Failed to persist refreshed tokens:`, e.message);
 		}
@@ -317,7 +317,7 @@ async function poll(orgId) {
 			const fromNumber = from !== "—" ? from : null;
 			const toNumber = to !== "—" ? to : null;
 
-			console.log(`[CallLog:${orgId}] Ended call:`, {
+			console.log(`👋 [CallLog:${orgId}] Ended call:`, {
 				id,
 				direction,
 				from,
@@ -369,7 +369,7 @@ async function poll(orgId) {
 						existingRecordingIds.add(id);
 						setImmediate(() => processRecording(inserted.id));
 					} else if (error?.code !== "23505") {
-						console.error(`[CallLog:${orgId}] Insert call_recordings error:`, error?.message);
+						console.error(`💢 [CallLog:${orgId}] Insert call_recordings error:`, error?.message);
 					}
 				} catch (e) {
 					console.error(`[CallLog:${orgId}] Insert recording error:`, e.message);
@@ -417,7 +417,7 @@ async function poll(orgId) {
 			}
 			return;
 		}
-		console.error(`[CallLog:${orgId}] API error:`, msg);
+		console.error(`📛 [CallLog:${orgId}] API error:`, msg);
 	}
 }
 

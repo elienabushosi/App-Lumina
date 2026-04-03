@@ -40,11 +40,11 @@ async function migrateFromFileIfNeeded(key) {
 			},
 			{ onConflict: "id_organization" }
 		);
-		console.log("[RingCentral] Migrated tokens from file to DB for key:", key);
+		console.log("🔸 [RingCentral] Migrated tokens from file to DB for key:", key);
 		return row;
 	} catch (e) {
 		if (e.code === "ENOENT") return null;
-		console.warn("[RingCentral] File migration skipped:", e.message);
+		console.warn("🔸 [RingCentral] File migration skipped:", e.message);
 		return null;
 	}
 }
@@ -62,7 +62,7 @@ export async function getRingCentralTokens(key) {
 		.maybeSingle();
 
 	if (error) {
-		console.error("[RingCentral] Token store get error:", error.message);
+		console.error("🔸 [RingCentral] Token store get error:", error.message);
 		return null;
 	}
 	if (data) {
@@ -114,7 +114,7 @@ export async function setRingCentralTokens(key, data) {
 	});
 
 	if (error) {
-		console.error("[RingCentral] Token store set error:", error.message);
+		console.error("🔸 [RingCentral] Token store set error:", error.message);
 		throw error;
 	}
 }
@@ -131,10 +131,27 @@ export async function getAllConnectedOrgs() {
 		.select("id_organization")
 		.not("access_token", "is", null);
 	if (error) {
-		console.error("[RingCentral] getAllConnectedOrgs error:", error.message);
+		console.error("🔸 [RingCentral] getAllConnectedOrgs error:", error.message);
 		return [];
 	}
 	return (data ?? []).map((r) => r.id_organization);
+}
+
+/**
+ * Set token_valid flag for an org.
+ * false = revoked/unreachable. true = healthy (set after successful OAuth).
+ * @param {string} orgId
+ * @param {boolean} valid
+ */
+export async function setTokenValid(orgId, valid) {
+	const db = getSupabase();
+	const { error } = await db
+		.from("ringcentral_connections")
+		.update({ token_valid: valid, updated_at: new Date().toISOString() })
+		.eq("id_organization", orgId);
+	if (error) {
+		console.error(`🔸 [RingCentral] setTokenValid error for org ${orgId}:`, error.message);
+	}
 }
 
 /**
@@ -150,7 +167,7 @@ export async function setRingCentralSubscriptionId(key, subscriptionId) {
 		.eq("id_organization", key);
 
 	if (error) {
-		console.error("[RingCentral] Token store setSubscriptionId error:", error.message);
+		console.error("🔸 [RingCentral] Token store setSubscriptionId error:", error.message);
 		throw error;
 	}
 }

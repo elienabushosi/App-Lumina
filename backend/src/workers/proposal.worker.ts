@@ -25,6 +25,6 @@ export function startProposalWorker() {
     logger.error({ proposalId: job?.data.proposalId, event: 'job_failed', err: err.message });
   });
 
-  logger.info({ msg: 'Proposal worker started' });
+  logger.info({ msg: '⚙️ Proposal worker started 🟢' });
   return worker;
 }

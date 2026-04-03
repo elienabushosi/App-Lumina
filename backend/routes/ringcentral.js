@@ -15,6 +15,7 @@ import {
 	getRingCentralTokens,
 	setRingCentralTokens,
 	setRingCentralSubscriptionId,
+	setTokenValid,
 } from "../lib/ringcentral-token-store.js";
 import { resetAndRestartPoller, startOrgPoller } from "../lib/ringcentral-call-log-poller.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -30,17 +31,31 @@ const TELEPHONY_SESSIONS_FILTER = "/restapi/v1.0/account/~/telephony/sessions?st
 // ---------------------------------------------------------------------------
 router.get("/status", requireAuth, async (req, res) => {
 	const orgId = req.user.IdOrganization;
-	const tokens = await getRingCentralTokens(orgId);
-	if (!tokens || !tokens.access_token) {
+
+	// Fetch full row including token_valid flag
+	const db = (await import("../lib/supabase.js")).getSupabase();
+	const { data: row } = await db
+		.from("ringcentral_connections")
+		.select("access_token, refresh_token, expire_time, refresh_token_expire_time, token_valid")
+		.eq("id_organization", orgId)
+		.maybeSingle();
+
+	if (!row || !row.access_token) {
 		return res.json({ connected: false });
 	}
+
+	// If health checker has flagged tokens as invalid, report disconnected immediately
+	if (row.token_valid === false) {
+		return res.json({ connected: false });
+	}
+
 	// Connected = refresh token is still valid. The access token expires every ~60min
 	// but the SDK auto-refreshes it, so checking access token expiry gives false
 	// "Disconnected" after a server restart. Refresh token expiry (7-day window,
 	// rolling) is the real indicator of whether reconnect is needed.
 	const nowMs = Date.now();
-	const rtExpireMs = typeof tokens.refresh_token_expire_time === "number"
-		? tokens.refresh_token_expire_time
+	const rtExpireMs = typeof row.refresh_token_expire_time === "number"
+		? row.refresh_token_expire_time
 		: null;
 
 	// Normalise: if stored in seconds (< year 2100 in ms), convert to ms.
@@ -53,15 +68,15 @@ router.get("/status", requireAuth, async (req, res) => {
 	if (normalizedRtExpireMs !== null) {
 		connected = normalizedRtExpireMs > nowMs + 60_000;
 	} else {
-		const atExpireMs = typeof tokens.expire_time === "number"
-			? (tokens.expire_time > 1_000_000_000_0 ? tokens.expire_time : tokens.expire_time * 1000)
+		const atExpireMs = typeof row.expire_time === "number"
+			? (row.expire_time > 1_000_000_000_0 ? row.expire_time : row.expire_time * 1000)
 			: null;
 		connected = atExpireMs !== null && atExpireMs > nowMs + 60_000;
 	}
 
 	const payload = { connected };
 	if (process.env.NODE_ENV === "development") {
-		payload._debug = { nowMs, refresh_token_expire_time: tokens.refresh_token_expire_time, normalizedRtExpireMs };
+		payload._debug = { nowMs, refresh_token_expire_time: row.refresh_token_expire_time, normalizedRtExpireMs, token_valid: row.token_valid };
 	}
 	res.json(payload);
 });
@@ -123,7 +138,7 @@ router.get("/callback", async (req, res) => {
 	// RC sends ?error=... if the user denied access or permissions are insufficient
 	if (rcError) {
 		const msg = rcErrorDesc || rcError;
-		console.error(`[RingCentral] OAuth error from RC: ${rcError} — ${rcErrorDesc}`);
+		console.error(`🔑 🔴 [RingCentral] OAuth error from RC: ${rcError} — ${rcErrorDesc}`);
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=${encodeURIComponent(msg)}`);
 	}
 
@@ -132,12 +147,12 @@ router.get("/callback", async (req, res) => {
 	}
 
 	if (!state) {
-		console.error("[RingCentral] OAuth callback missing state (orgId) — rejecting");
+		console.error("🔑 🔴 [RingCentral] OAuth callback missing state (orgId) — rejecting");
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=missing_org_state`);
 	}
 
 	const orgId = state;
-	console.log(`[RingCentral] Callback for org: ${orgId}, exchanging code...`);
+	console.log(`🔑 🔵 [RingCentral] Callback for org: ${orgId}, exchanging code...`);
 
 	const clientId = process.env.RINGCENTRAL_CLIENT_ID;
 	const clientSecret = process.env.RINGCENTRAL_CLIENT_SECRET;
@@ -162,11 +177,12 @@ router.get("/callback", async (req, res) => {
 			expires_in: tokenData.expires_in,
 			refresh_token_expires_in: tokenData.refresh_token_expires_in,
 		});
-		console.log("[RingCentral] Tokens stored for org:", orgId);
+		await setTokenValid(orgId, true);
+		console.log("🔑 ✅ [RingCentral] Tokens stored for org:", orgId);
 
 		// Restart this org's poller with fresh tokens.
 		resetAndRestartPoller(orgId).catch((e) =>
-			console.error(`[RingCentral:${orgId}] Failed to restart poller:`, e.message)
+			console.error(`🔑 🔴 [RingCentral:${orgId}] Failed to restart poller:`, e.message)
 		);
 
 		// Create webhook subscription if configured.
@@ -188,9 +204,9 @@ router.get("/callback", async (req, res) => {
 				const subJson = await subRes.json();
 				if (subJson.id) {
 					await setRingCentralSubscriptionId(orgId, subJson.id);
-					console.log("[RingCentral] Webhook subscription created:", subJson.id);
+					console.log("🔑 ✅ [RingCentral] Webhook subscription created:", subJson.id);
 				} else {
-					console.warn("[RingCentral] Subscription response missing id:", subJson);
+					console.warn("🔑 ⚠️ [RingCentral] Subscription response missing id:", subJson);
 				}
 			} catch (subErr) {
 				console.error("🔴 [RingCentral] Subscription create error:", subErr.message);
@@ -201,7 +217,7 @@ router.get("/callback", async (req, res) => {
 
 		return res.redirect(`${frontendUrl}/settings?ringcentral=connected`);
 	} catch (err) {
-		console.error("RingCentral callback error:", err.message);
+		console.error("🔑 🔴 [RingCentral] Callback error:", err.message);
 		return res.redirect(`${frontendUrl}/settings?ringcentral=error&message=exchange_failed`);
 	}
 });
@@ -262,7 +278,7 @@ router.get("/extensions", requireAuth, async (req, res) => {
 
 		res.json({ extensions: result });
 	} catch (e) {
-		console.error("[RingCentral] /extensions error:", e.message);
+		console.error("🔌 🔴 [RingCentral] /extensions error:", e.message);
 		res.status(500).json({ error: "Failed to fetch RC extensions." });
 	}
 });
@@ -302,7 +318,7 @@ router.post("/extensions/map", requireAuth, async (req, res) => {
 	);
 
 	if (error) {
-		console.error("[RingCentral] /extensions/map error:", error.message);
+		console.error("🔌 🔴 [RingCentral] /extensions/map error:", error.message);
 		return res.status(500).json({ error: "Failed to save mapping." });
 	}
 
@@ -313,7 +329,7 @@ router.post("/extensions/map", requireAuth, async (req, res) => {
 // Webhook — RC calls this; no user auth
 // ---------------------------------------------------------------------------
 function handleWebhook(req, res) {
-	console.log("[RingCentral webhook] Request:", req.method,
+	console.log("🪝 📥 [RingCentral webhook] Request:", req.method,
 		req.method === "POST" ? "(body keys: " + Object.keys(req.body || {}).join(", ") + ")" : "");
 
 	const validationToken =
@@ -334,15 +350,15 @@ function handleWebhook(req, res) {
 
 	if (event && body.body) {
 		setImmediate(() => {
-			console.log("[RingCentral webhook] event:", event, "uuid:", uuid);
+			console.log("🪝 📡 [RingCentral webhook] Event:", event, "uuid:", uuid);
 			const sessionId = body.body?.telephonySessionId ?? body.body?.sessionId;
 			if (sessionId) {
-				console.log("[RingCentral webhook] telephonySessionId:", sessionId, "- (call-ended pipeline placeholder)");
+				console.log("🪝 📞 [RingCentral webhook] telephonySessionId:", sessionId, "- (call-ended pipeline placeholder)");
 			}
 		});
 	} else if (req.method === "POST" && Object.keys(body).length > 0) {
 		setImmediate(() => {
-			console.log("[RingCentral webhook] Unrecognized payload:", JSON.stringify(body).slice(0, 300));
+			console.log("🪝 ⚠️ [RingCentral webhook] Unrecognized payload:", JSON.stringify(body).slice(0, 300));
 		});
 	}
 }
