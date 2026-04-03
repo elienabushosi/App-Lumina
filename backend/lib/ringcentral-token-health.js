@@ -24,7 +24,7 @@ function getRedis() {
 		const url = process.env.REDIS_URL || "redis://localhost:6379";
 		redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
 		redis.on("error", (err) => {
-			console.error("[RC:Health] Redis error:", err.message);
+			console.error("🏥 [RC:Health] Redis error:", err.message);
 		});
 	}
 	return redis;
@@ -64,7 +64,7 @@ async function checkOrg(orgId) {
 		// Lightweight call — just checks if tokens work
 		await platform.get("/restapi/v1.0/status");
 		await setTokenValid(orgId, true);
-		console.log(`[RC:Health] ✅ Org ${orgId} tokens valid`);
+		console.log(`🏥 [RC:Health] ✅ Org ${orgId} tokens valid`);
 	} catch (err) {
 		const msg = err?.message || "";
 		const isRevoked =
@@ -74,10 +74,10 @@ async function checkOrg(orgId) {
 			msg.includes("401");
 		if (isRevoked) {
 			await setTokenValid(orgId, false);
-			console.warn(`[RC:Health] ❌ Org ${orgId} tokens revoked — marked invalid`);
+			console.warn(`🏥 [RC:Health] ❌ Org ${orgId} tokens revoked — marked invalid`);
 		} else {
 			// Network error or RC outage — don't flip to false, could be transient
-			console.warn(`[RC:Health] ⚠️ Org ${orgId} check failed (transient?): ${msg}`);
+			console.warn(`🏥 [RC:Health] ⚠️ Org ${orgId} check failed (transient?): ${msg}`);
 		}
 	}
 }
@@ -85,13 +85,13 @@ async function checkOrg(orgId) {
 async function runHealthCheck() {
 	const acquired = await acquireLock();
 	if (!acquired) {
-		console.log("[RC:Health] Another instance holds the lock — skipping this run");
+		console.log("🏥 [RC:Health] Another instance holds the lock — skipping this run");
 		return;
 	}
 	try {
 		const orgIds = await getAllConnectedOrgs();
 		if (orgIds.length === 0) return;
-		console.log(`[RC:Health] Checking ${orgIds.length} org(s)...`);
+		console.log(`🏥 [RC:Health] Checking ${orgIds.length} org(s)...`);
 		await Promise.all(orgIds.map(checkOrg));
 	} finally {
 		await releaseLock();
@@ -100,10 +100,10 @@ async function runHealthCheck() {
 
 export function startTokenHealthChecker() {
 	if (!process.env.RINGCENTRAL_CLIENT_ID) {
-		console.log("[RC:Health] RC not configured — health checker not started");
+		console.log("🏥 [RC:Health] RC not configured — health checker not started");
 		return;
 	}
-	console.log("[RC:Health] Token health checker started (every 5min, distributed lock)");
+	console.log("🏥 [RC:Health] Token health checker started (every 5min, distributed lock)");
 	// Run once at startup after a short delay so the old container has time to shut down
 	setTimeout(() => {
 		runHealthCheck();
