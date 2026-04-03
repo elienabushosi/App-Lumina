@@ -7,6 +7,8 @@ import {
 	getAuthToken,
 	verifyToken,
 	removeAuthToken,
+	removeRefreshToken,
+	refreshAuthToken,
 	getCurrentUser,
 } from "@/lib/auth";
 import { config } from "@/lib/config";
@@ -166,13 +168,20 @@ export default function WorkspaceLayout({
 			}
 
 			// Verify token with backend and get user data
-			const isValid = await verifyToken(token);
+			let isValid = await verifyToken(token);
 
 			if (!isValid) {
-				// Remove invalid token
-				localStorage.removeItem("auth_token");
-				router.push("/login");
-				return;
+				// Token expired — try to refresh before giving up
+				const newToken = await refreshAuthToken();
+				if (newToken) {
+					isValid = true;
+				} else {
+					// Refresh failed — clear everything and redirect to login
+					removeAuthToken();
+					removeRefreshToken();
+					router.push("/login");
+					return;
+				}
 			}
 
 			// Fetch user data with organization
@@ -402,6 +411,7 @@ export default function WorkspaceLayout({
 								tooltip="Sign out"
 								onClick={() => {
 									removeAuthToken();
+									removeRefreshToken();
 									router.push("/login");
 								}}
 								className="w-full"

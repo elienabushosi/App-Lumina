@@ -335,6 +335,7 @@ router.post("/login", async (req, res) => {
 				IdOrganization: user.IdOrganization,
 			},
 			token: authData.session.access_token,
+			refresh_token: authData.session.refresh_token,
 		});
 	} catch (error) {
 		console.error("Login error:", error);
@@ -343,6 +344,28 @@ router.post("/login", async (req, res) => {
 			message: "Internal server error",
 			error: error.message,
 		});
+	}
+});
+
+// Refresh token endpoint — exchange a Supabase refresh_token for a new access_token
+router.post("/refresh", async (req, res) => {
+	try {
+		const { refresh_token } = req.body;
+		if (!refresh_token) {
+			return res.status(400).json({ status: "error", message: "refresh_token is required" });
+		}
+		const { data, error } = await supabaseAuth.auth.refreshSession({ refresh_token });
+		if (error || !data?.session) {
+			return res.status(401).json({ status: "error", message: "Refresh token invalid or expired" });
+		}
+		res.json({
+			status: "success",
+			token: data.session.access_token,
+			refresh_token: data.session.refresh_token,
+		});
+	} catch (error) {
+		console.error("Token refresh error:", error);
+		res.status(500).json({ status: "error", message: "Internal server error" });
 	}
 });
 

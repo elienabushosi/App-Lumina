@@ -16,6 +16,45 @@ export function removeAuthToken(): void {
 	localStorage.removeItem("auth_token");
 }
 
+export function getRefreshToken(): string | null {
+	if (typeof window === "undefined") return null;
+	return localStorage.getItem("refresh_token");
+}
+
+export function setRefreshToken(token: string): void {
+	if (typeof window === "undefined") return;
+	localStorage.setItem("refresh_token", token);
+}
+
+export function removeRefreshToken(): void {
+	if (typeof window === "undefined") return;
+	localStorage.removeItem("refresh_token");
+}
+
+// Try to get a new access token using the stored refresh token.
+// Returns the new access token on success, null on failure.
+export async function refreshAuthToken(): Promise<string | null> {
+	try {
+		const refreshToken = getRefreshToken();
+		if (!refreshToken) return null;
+		const response = await fetch(`${config.apiUrl}/api/auth/refresh`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ refresh_token: refreshToken }),
+		});
+		if (!response.ok) return null;
+		const data = await response.json();
+		if (data.token) {
+			setAuthToken(data.token);
+			if (data.refresh_token) setRefreshToken(data.refresh_token);
+			return data.token;
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
 export function isAuthenticated(): boolean {
 	return getAuthToken() !== null;
 }
