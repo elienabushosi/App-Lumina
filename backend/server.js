@@ -12,6 +12,7 @@ import agencyzoomRoutes from "./routes/agencyzoom.js";
 import propertyRoutes from "./routes/property.js";
 import researchReportsRoutes from "./routes/research-reports.js";
 import { startCallLogPoller } from "./lib/ringcentral-call-log-poller.js";
+import { startTokenHealthChecker, stopTokenHealthChecker } from "./lib/ringcentral-token-health.js";
 import { startProposalWorker } from "./src/workers/proposal.worker.js";
 import { closeBrowser } from "./src/agents/browser.js";
 import proposalRoutes from "./src/routes/proposals.js";
@@ -94,11 +95,13 @@ app.listen(PORT, () => {
 	if (process.env.RAILWAY_ENV !== 'staging') {
 		startCallLogPoller();
 	}
+	startTokenHealthChecker();
 	startProposalWorker();
 });
 
 async function shutdown() {
 	console.log("Shutting down...");
+	stopTokenHealthChecker();
 	await closeBrowser();
 	process.exit(0);
 }

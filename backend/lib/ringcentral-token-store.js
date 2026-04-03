@@ -138,6 +138,23 @@ export async function getAllConnectedOrgs() {
 }
 
 /**
+ * Set token_valid flag for an org.
+ * false = revoked/unreachable. true = healthy (set after successful OAuth).
+ * @param {string} orgId
+ * @param {boolean} valid
+ */
+export async function setTokenValid(orgId, valid) {
+	const db = getSupabase();
+	const { error } = await db
+		.from("ringcentral_connections")
+		.update({ token_valid: valid, updated_at: new Date().toISOString() })
+		.eq("id_organization", orgId);
+	if (error) {
+		console.error(`[RingCentral] setTokenValid error for org ${orgId}:`, error.message);
+	}
+}
+
+/**
  * Update only subscription_id for a key (e.g. after creating webhook subscription).
  * @param {string} key
  * @param {string} subscriptionId

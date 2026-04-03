@@ -1,6 +1,7 @@
 "use client";
 
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const CHECKLIST = [
 	{
@@ -31,9 +32,17 @@ const CHECKLIST = [
 ];
 
 export default function RingCentralSetupPage() {
+	const router = useRouter();
 	return (
 		<div className="p-8">
 			<div className="max-w-2xl mx-auto space-y-6">
+				<button
+					onClick={() => router.back()}
+					className="flex items-center gap-1.5 text-sm text-[#605A57] hover:text-[#37322F] transition-colors"
+				>
+					<ArrowLeft className="h-4 w-4" />
+					Back
+				</button>
 				<div>
 					<img
 						src="/RingCentral_logo.png"

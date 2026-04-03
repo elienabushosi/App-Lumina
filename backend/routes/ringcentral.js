@@ -15,6 +15,7 @@ import {
 	getRingCentralTokens,
 	setRingCentralTokens,
 	setRingCentralSubscriptionId,
+	setTokenValid,
 } from "../lib/ringcentral-token-store.js";
 import { resetAndRestartPoller, startOrgPoller } from "../lib/ringcentral-call-log-poller.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -30,17 +31,31 @@ const TELEPHONY_SESSIONS_FILTER = "/restapi/v1.0/account/~/telephony/sessions?st
 // ---------------------------------------------------------------------------
 router.get("/status", requireAuth, async (req, res) => {
 	const orgId = req.user.IdOrganization;
-	const tokens = await getRingCentralTokens(orgId);
-	if (!tokens || !tokens.access_token) {
+
+	// Fetch full row including token_valid flag
+	const db = (await import("../lib/supabase.js")).getSupabase();
+	const { data: row } = await db
+		.from("ringcentral_connections")
+		.select("access_token, refresh_token, expire_time, refresh_token_expire_time, token_valid")
+		.eq("id_organization", orgId)
+		.maybeSingle();
+
+	if (!row || !row.access_token) {
 		return res.json({ connected: false });
 	}
+
+	// If health checker has flagged tokens as invalid, report disconnected immediately
+	if (row.token_valid === false) {
+		return res.json({ connected: false });
+	}
+
 	// Connected = refresh token is still valid. The access token expires every ~60min
 	// but the SDK auto-refreshes it, so checking access token expiry gives false
 	// "Disconnected" after a server restart. Refresh token expiry (7-day window,
 	// rolling) is the real indicator of whether reconnect is needed.
 	const nowMs = Date.now();
-	const rtExpireMs = typeof tokens.refresh_token_expire_time === "number"
-		? tokens.refresh_token_expire_time
+	const rtExpireMs = typeof row.refresh_token_expire_time === "number"
+		? row.refresh_token_expire_time
 		: null;
 
 	// Normalise: if stored in seconds (< year 2100 in ms), convert to ms.
@@ -53,15 +68,15 @@ router.get("/status", requireAuth, async (req, res) => {
 	if (normalizedRtExpireMs !== null) {
 		connected = normalizedRtExpireMs > nowMs + 60_000;
 	} else {
-		const atExpireMs = typeof tokens.expire_time === "number"
-			? (tokens.expire_time > 1_000_000_000_0 ? tokens.expire_time : tokens.expire_time * 1000)
+		const atExpireMs = typeof row.expire_time === "number"
+			? (row.expire_time > 1_000_000_000_0 ? row.expire_time : row.expire_time * 1000)
 			: null;
 		connected = atExpireMs !== null && atExpireMs > nowMs + 60_000;
 	}
 
 	const payload = { connected };
 	if (process.env.NODE_ENV === "development") {
-		payload._debug = { nowMs, refresh_token_expire_time: tokens.refresh_token_expire_time, normalizedRtExpireMs };
+		payload._debug = { nowMs, refresh_token_expire_time: row.refresh_token_expire_time, normalizedRtExpireMs, token_valid: row.token_valid };
 	}
 	res.json(payload);
 });
@@ -162,6 +177,7 @@ router.get("/callback", async (req, res) => {
 			expires_in: tokenData.expires_in,
 			refresh_token_expires_in: tokenData.refresh_token_expires_in,
 		});
+		await setTokenValid(orgId, true);
 		console.log("[RingCentral] Tokens stored for org:", orgId);
 
 		// Restart this org's poller with fresh tokens.
