@@ -66,6 +66,14 @@ export default function LandingPage() {
 	const mountedRef = useRef(true);
 	const activeCardRef = useRef(0);
 
+	// If already logged in, skip the landing page and go straight to the dashboard
+	useEffect(() => {
+		const token = localStorage.getItem("auth_token");
+		if (token) {
+			router.replace("/agency-zoom-leads");
+		}
+	}, [router]);
+
 	const handleAddressSelect = () => {
 		// No validation; address is passed through to next step when user continues.
 	};

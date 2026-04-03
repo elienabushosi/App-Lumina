@@ -53,6 +53,14 @@ function LoginPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [isLoading, setIsLoading] = useState(false);
+
+	// If already logged in, skip login and go straight to the dashboard
+	useEffect(() => {
+		const token = localStorage.getItem("auth_token");
+		if (token) {
+			router.replace("/agency-zoom-leads");
+		}
+	}, [router]);
 	const [isSuccess, setIsSuccess] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -126,6 +134,9 @@ function LoginPageContent() {
 			// Success - store the token if provided
 			if (result.token) {
 				localStorage.setItem("auth_token", result.token);
+			}
+			if (result.refresh_token) {
+				localStorage.setItem("refresh_token", result.refresh_token);
 			}
 
 			// Wait 1 second, then turn button green
